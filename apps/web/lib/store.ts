@@ -88,6 +88,8 @@ interface SceneStore {
   ) => void;
   updateFluidBlock: (index: number, patch: Partial<Block>) => void;
   setIssues: (issues: ValidationIssue[]) => void;
+  // Generic draft mutation for the params / export screens.
+  mutate: (fn: (scene: Scene) => void) => void;
 }
 
 function clone<T>(v: T): T {
@@ -123,4 +125,10 @@ export const useSceneStore = create<SceneStore>((set) => ({
       return { scene };
     }),
   setIssues: (issues) => set({ issues }),
+  mutate: (fn) =>
+    set((s) => {
+      const scene = clone(s.scene);
+      fn(scene);
+      return { scene };
+    }),
 }));
