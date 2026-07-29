@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { ui } from "@/components/fields";
 import { api } from "@/lib/api";
 
@@ -15,9 +15,9 @@ const ResultViewer3D = dynamic(() => import("@/components/ResultViewer3D"), {
 type FrameMeta = { frame: number; simTime: number };
 type FramePoints = { fluid: number[][]; objects: Record<string, number[][]> };
 
-// U14: S6 results — frame scrubber, 3D playback, CSV download.
-export default function ResultsPage() {
-  const { id } = useParams<{ id: string }>();
+// U14/U18: S6 results. Query-param route (/results?id=...) for static export.
+function Results() {
+  const id = useSearchParams().get("id") ?? "";
   const [frames, setFrames] = useState<FrameMeta[]>([]);
   const [idx, setIdx] = useState(0);
   const [points, setPoints] = useState<FramePoints>({ fluid: [], objects: {} });
@@ -77,5 +77,13 @@ export default function ResultsPage() {
         )}
       </footer>
     </main>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<main style={ui.page}>読み込み中…</main>}>
+      <Results />
+    </Suspense>
   );
 }

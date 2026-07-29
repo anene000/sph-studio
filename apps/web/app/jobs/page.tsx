@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ui } from "@/components/fields";
 import { api } from "@/lib/api";
 
@@ -16,9 +16,10 @@ type Progress = {
   particleNum?: number;
 };
 
-// U13: S5 progress via WebSocket.
-export default function JobProgressPage() {
-  const { id } = useParams<{ id: string }>();
+// U13/U18: S5 progress via WebSocket. Query-param route (/jobs?id=...) so the app
+// can be statically exported for the Tauri desktop bundle.
+function JobProgress() {
+  const id = useSearchParams().get("id") ?? "";
   const [status, setStatus] = useState("connecting");
   const [progress, setProgress] = useState<Progress>({});
   const [log, setLog] = useState<string[]>([]);
@@ -128,7 +129,7 @@ export default function JobProgressPage() {
           </button>
         )}
         {status === "completed" && (
-          <Link href={`/results/${id}`} style={{ ...ui.button, textDecoration: "none" }}>
+          <Link href={`/results?id=${id}`} style={{ ...ui.button, textDecoration: "none" }}>
             結果を見る →
           </Link>
         )}
@@ -139,6 +140,14 @@ export default function JobProgressPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function JobProgressPage() {
+  return (
+    <Suspense fallback={<main style={ui.page}>読み込み中…</main>}>
+      <JobProgress />
+    </Suspense>
   );
 }
 

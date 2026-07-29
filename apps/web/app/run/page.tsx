@@ -22,7 +22,7 @@ export default function RunPage() {
     setError(null);
     try {
       const job = await api.createJob(scene);
-      router.push(`/jobs/${job.id}`);
+      router.push(`/jobs?id=${job.id}`);
     } catch (e) {
       setError(String(e));
       setBusy(false);

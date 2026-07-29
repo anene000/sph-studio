@@ -112,9 +112,9 @@ export default function Home() {
                     {j.progress?.step ? `${j.progress.step}/${j.progress.totalSteps ?? "?"}` : "-"}
                   </td>
                   <td style={{ ...td, textAlign: "right" }}>
-                    <Link href={`/jobs/${j.id}`} style={linkBtn}>進捗</Link>
+                    <Link href={`/jobs?id=${j.id}`} style={linkBtn}>進捗</Link>
                     {j.status === "completed" && (
-                      <Link href={`/results/${j.id}`} style={{ ...linkBtn, marginLeft: 8 }}>結果</Link>
+                      <Link href={`/results?id=${j.id}`} style={{ ...linkBtn, marginLeft: 8 }}>結果</Link>
                     )}
                   </td>
                 </tr>

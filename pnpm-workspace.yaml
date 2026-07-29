@@ -1,5 +1,8 @@
 packages:
-  - "apps/*"
+  # Only the web frontend is a pnpm workspace member. apps/desktop (Tauri) is built
+  # with the Rust/Tauri toolchain and manages its own JS deps, so it is kept out of
+  # the web lockfile to keep CI installs reproducible.
+  - "apps/web"
 # This pnpm build gates build scripts via supply-chain policies and treats an
 # undecided script as an error (ERR_PNPM_IGNORED_BUILDS). Explicitly decide the
 # transitive eslint resolver's native build (do NOT run it) so install is clean

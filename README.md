@@ -186,6 +186,24 @@ SPH_ARCH=cpu .venv/Scripts/python scripts/benchmark.py
 
 ---
 
+## デスクトップ版（Phase B / Tauri）
+
+フロントは静的エクスポート対応（`next.config.mjs` の `output: "export"`、動的画面は
+`/jobs?id=` `/results?id=` のクエリ方式）。`pnpm --filter web build` で `apps/web/out/` に
+静的サイトを生成し、**Tauri**（[`apps/desktop`](apps/desktop/README.md)）がそれをバンドルする。
+
+```bash
+# 前提: Rust ツールチェイン（+ 各OSのWebView依存）
+pnpm --filter web build
+pnpm --dir apps/desktop tauri build     # OS別インストーラ
+```
+
+- U18: Tauri シェルで静的フロントを WebView 表示（雛形配置済み）。
+- U19（次）: Python(FastAPI) を PyInstaller 化して Tauri **サイドカー**同梱。
+- U20（次）: OS別ビルドを CI で生成し Release 配布。
+
+---
+
 ## モデルデータ（.obj）
 
 サイズの大きい `.obj` はリポジトリに含めない（`data/models/README.md` 参照）。
