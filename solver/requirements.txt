@@ -1,0 +1,4 @@
+# Solver runtime (Taichi SPH). Install into the same venv as the backend.
+taichi>=1.2.0
+numpy>=1.23
+trimesh>=3.20

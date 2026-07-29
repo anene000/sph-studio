@@ -1,0 +1,18 @@
+{
+  "name": "sph-studio",
+  "version": "0.0.1",
+  "private": true,
+  "description": "GUI desktop application for the Taichi SPH fluid/rigid simulator (TypeScript + Next.js + Python).",
+  "license": "MIT",
+  "packageManager": "pnpm@11.15.0",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint",
+    "dev:backend": "python -m uvicorn app.main:app --reload --port 8000 --app-dir backend",
+    "solver:sample": "python solver/run_headless.py --scene_file data/scenes/sample_bunny.json --output_dir outputs/sample"
+  },
+  "workspaces": [
+    "apps/*"
+  ]
+}

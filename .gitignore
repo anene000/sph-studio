@@ -1,0 +1,40 @@
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.pnpm-store/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Tauri / Rust (Phase B) ----
+apps/desktop/target/
+apps/desktop/src-tauri/target/
+
+# ---- Simulation outputs ----
+outputs/
+*_output/
+*_output_img/
+*.ply
+
+# ---- Large model binaries (place locally; see data/models/README.md) ----
+data/models/*.obj
+!data/models/bunny_sparse.obj
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+imgui.ini
+.ipynb_checkpoints/
