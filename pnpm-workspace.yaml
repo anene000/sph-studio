@@ -1,7 +1,8 @@
 packages:
   - "apps/*"
-# Standard pnpm setting: explicitly decline the native build script of unrs-resolver
-# (a transitive eslint resolver dep). Silences the "Ignored build scripts" warning on
-# both local installs and CI, without running any native build.
-ignoredBuiltDependencies:
-  - unrs-resolver
+# This pnpm build gates build scripts via supply-chain policies and treats an
+# undecided script as an error (ERR_PNPM_IGNORED_BUILDS). Explicitly decide the
+# transitive eslint resolver's native build (do NOT run it) so install is clean
+# on both local and CI.
+allowBuilds:
+  unrs-resolver: false
