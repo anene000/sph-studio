@@ -13,9 +13,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install backend deps
-        run: pip install -r backend/requirements.txt pytest
-      - name: Run backend tests (schema/validation, no Taichi)
+      - name: Install backend deps (pinned)
+        run: pip install -r backend/requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check backend solver
+      - name: Run backend tests (schema/samples; e2e auto-skips without Taichi)
         run: pytest backend -q
 
   web:
@@ -33,5 +35,7 @@ jobs:
         run: pnpm install --frozen-lockfile=false
       - name: Typecheck
         run: pnpm --filter web typecheck
+      - name: Lint (eslint)
+        run: pnpm --filter web lint
       - name: Build
         run: pnpm --filter web build

@@ -26,7 +26,6 @@ import time
 import numpy as np
 import taichi as ti
 
-
 # Keep a handle to the *real* stdout: it is reserved exclusively for JSON Lines.
 # In main() we redirect sys.stdout -> sys.stderr so any print()/Taichi banner from
 # the solver goes to stderr, leaving stdout a clean, parseable JSONL stream.

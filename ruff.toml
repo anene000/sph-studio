@@ -1,0 +1,16 @@
+# Internal-quality lint config (deterministic, intentional rule set).
+line-length = 120
+extend-exclude = [".venv", "outputs", ".next", "node_modules", "apps"]
+
+[lint]
+# Pyflakes (real bugs), import sorting, pycodestyle errors/warnings, bugbear.
+select = ["E", "F", "I", "W", "B"]
+# E501 (line length) kept lenient; B008 is FastAPI's Depends() idiom.
+ignore = ["E501", "B008"]
+
+[lint.per-file-ignores]
+# solver/ is vendored/legacy Taichi code: enforce real-bug rules (F, E9) but not
+# style opinions. Unused locals (F841) are tolerated in the numerical kernels.
+"solver/*.py" = ["E", "W", "B", "F841"]
+# tests intentionally use bare asserts / broad excepts for negative cases.
+"backend/tests/*.py" = ["B011", "B017"]

@@ -34,9 +34,8 @@ def _wait_done(client, job_id, timeout=180):
 
 def test_new_calculation_flow_produces_separate_csv():
     os.environ["SPH_ARCH"] = "cpu"  # force CPU so the subprocess runs headless anywhere
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     client = TestClient(app)
 

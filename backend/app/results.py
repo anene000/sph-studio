@@ -6,7 +6,6 @@ import io
 import json
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 
 def frames_index(output_dir: str) -> dict:
@@ -47,7 +46,7 @@ def frame_points(output_dir: str, frame: int) -> dict:
     if not entry:
         return out
     base = Path(output_dir)
-    for oid, meta in (entry.get("fluid") or {}).items():
+    for _oid, meta in (entry.get("fluid") or {}).items():
         out["fluid"] += _read_csv_points(base / meta["file"])
     for oid, meta in (entry.get("objects") or {}).items():
         out["objects"][oid] = _read_csv_points(base / meta["file"])

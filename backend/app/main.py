@@ -60,7 +60,7 @@ def config_import(payload: dict):
     try:
         scene = config_io.parse_scene(payload)
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=json.loads(e.json()))
+        raise HTTPException(status_code=422, detail=json.loads(e.json())) from None
     return config_io.scene_to_dict(scene)
 
 

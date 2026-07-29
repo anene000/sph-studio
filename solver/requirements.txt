@@ -1,7 +1,8 @@
-# Solver runtime (Taichi SPH). Install into the same venv as the backend.
-taichi>=1.2.0
-numpy>=1.23
-trimesh>=3.20
+# Solver runtime (Taichi SPH). Pinned to tested versions.
+# Install into the same venv as the backend.
+taichi==1.7.4
+numpy==2.5.1
+trimesh==4.12.2
 # trimesh needs these for mesh repair (fill_holes) and voxelization:
-networkx>=3.0
-scipy>=1.10
+networkx==3.6.1
+scipy==1.18.0

@@ -1,5 +1,5 @@
-import taichi as ti
 import numpy as np
+import taichi as ti
 
 
 @ti.data_oriented

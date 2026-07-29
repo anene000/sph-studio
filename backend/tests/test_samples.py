@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from app import config_io
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

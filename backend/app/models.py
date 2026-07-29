@@ -51,7 +51,7 @@ class Configuration(BaseModel):
     def _check_domain(self):
         if len(self.domainStart) != len(self.domainEnd):
             raise ValueError("domainStart and domainEnd must have the same length")
-        for a, b in zip(self.domainStart, self.domainEnd):
+        for a, b in zip(self.domainStart, self.domainEnd, strict=False):
             if b <= a:
                 raise ValueError("domainEnd must be strictly greater than domainStart on every axis")
         return self

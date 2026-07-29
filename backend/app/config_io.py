@@ -8,7 +8,6 @@ trimesh when available; otherwise the check is skipped gracefully.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from .models import Scene
 
