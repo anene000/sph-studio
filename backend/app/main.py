@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
@@ -19,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import ValidationError
 
 from . import config_io, results
-from .jobs import REPO_ROOT, manager
+from .jobs import OUTPUTS_ROOT, REPO_ROOT, manager
 from .models import Scene
 
 app = FastAPI(title="SPH Studio Backend", version="0.0.1")
@@ -38,6 +40,18 @@ MODELS_DIR = REPO_ROOT / "data" / "models"
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "sph-studio-backend"}
+
+
+@app.get("/api/info")
+def info():
+    """Environment info for the S7 settings screen (read-only in Phase A)."""
+    return {
+        "repoRoot": str(REPO_ROOT),
+        "modelsDir": str(MODELS_DIR),
+        "outputsDir": str(OUTPUTS_ROOT),
+        "python": sys.executable,
+        "arch": os.environ.get("SPH_ARCH", "auto (vulkan→cpu)"),
+    }
 
 
 # ---------- ① config import / export ----------

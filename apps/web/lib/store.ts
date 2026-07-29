@@ -97,6 +97,9 @@ interface SceneStore {
   removeFluidBlock: (index: number) => void;
   addRigidBody: (geometryFile: string) => void;
   removeRigidBody: (index: number) => void;
+  // S0 home actions.
+  resetScene: () => void;
+  loadScene: (scene: Scene) => void;
 }
 
 // Unique objectId across the union of fluid + rigid objects (the solver keys its
@@ -204,4 +207,6 @@ export const useSceneStore = create<SceneStore>((set) => ({
       if (removed) scene.Export.objects = scene.Export.objects.filter((o) => o.objectId !== removed.objectId);
       return { scene };
     }),
+  resetScene: () => set({ scene: clone(defaultScene), issues: [] }),
+  loadScene: (scene) => set({ scene: clone(scene), issues: [] }),
 }));

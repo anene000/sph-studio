@@ -14,6 +14,13 @@ async function json<T>(res: Response): Promise<T> {
 export const api = {
   health: () => fetch(`${BASE}/api/health`).then((r) => json<{ ok: boolean }>(r)),
 
+  info: () =>
+    fetch(`${BASE}/api/info`).then((r) =>
+      json<{ repoRoot: string; modelsDir: string; outputsDir: string; python: string; arch: string }>(r)
+    ),
+
+  listJobs: () => fetch(`${BASE}/api/jobs`).then((r) => json<{ jobs: any[] }>(r)),
+
   importConfig: (payload: unknown) =>
     fetch(`${BASE}/api/config/import`, {
       method: "POST",
