@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import ValidationError
 
 from . import config_io, results
@@ -76,6 +76,16 @@ async def models_upload(file: UploadFile):
     dest = MODELS_DIR / Path(file.filename).name
     dest.write_bytes(await file.read())
     return {"name": dest.name}
+
+
+@app.get("/api/models/{name}")
+def model_file(name: str):
+    """Serve a raw .obj so the browser 3D preview (react-three-fiber) can load it."""
+    base = MODELS_DIR.resolve()
+    p = (base / name).resolve()
+    if base not in p.parents or not p.exists() or p.suffix.lower() != ".obj":
+        raise HTTPException(status_code=404, detail="model not found")
+    return FileResponse(p, media_type="text/plain", filename=p.name)
 
 
 # ---------- ⑤⑥ jobs ----------

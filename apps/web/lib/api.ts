@@ -30,6 +30,9 @@ export const api = {
 
   listModels: () => fetch(`${BASE}/api/models`).then((r) => json<{ models: string[] }>(r)),
 
+  // Raw .obj URL for the 3D preview (react-three-fiber OBJLoader).
+  modelUrl: (name: string) => `${BASE}/api/models/${encodeURIComponent(name)}`,
+
   createJob: (scene: Scene) =>
     fetch(`${BASE}/api/jobs`, {
       method: "POST",

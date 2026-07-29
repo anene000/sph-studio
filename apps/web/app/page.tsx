@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 // S0 Home (scaffold). Full screens (S1–S7) are implemented per docs/07 units U7–U15.
@@ -24,6 +25,21 @@ export default function Home() {
       <section style={card}>
         <strong>ステータス</strong>
         <div style={{ marginTop: 8, fontFamily: "monospace" }}>{health}</div>
+        <Link
+          href="/scene"
+          style={{
+            display: "inline-block",
+            marginTop: 14,
+            padding: "8px 14px",
+            background: "#1f6feb",
+            color: "white",
+            borderRadius: 6,
+            textDecoration: "none",
+            fontSize: 14,
+          }}
+        >
+          シーン設定（S1）を開く →
+        </Link>
       </section>
 
       <section style={card}>
