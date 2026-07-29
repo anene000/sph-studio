@@ -2,3 +2,6 @@
 taichi>=1.2.0
 numpy>=1.23
 trimesh>=3.20
+# trimesh needs these for mesh repair (fill_holes) and voxelization:
+networkx>=3.0
+scipy>=1.10

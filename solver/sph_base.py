@@ -1,4 +1,3 @@
-from matplotlib.pyplot import axis
 import taichi as ti
 import numpy as np
 
