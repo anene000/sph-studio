@@ -27,10 +27,16 @@ import numpy as np
 import taichi as ti
 
 
+# Keep a handle to the *real* stdout: it is reserved exclusively for JSON Lines.
+# In main() we redirect sys.stdout -> sys.stderr so any print()/Taichi banner from
+# the solver goes to stderr, leaving stdout a clean, parseable JSONL stream.
+_REAL_STDOUT = sys.stdout
+
+
 def emit(obj):
-    """Print one JSON Lines record to stdout and flush (consumed by the backend)."""
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    """Write one JSON Lines record to the real stdout and flush (consumed by the backend)."""
+    _REAL_STDOUT.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    _REAL_STDOUT.flush()
 
 
 def init_taichi():
@@ -224,6 +230,19 @@ def main():
     parser.add_argument("--scene_file", required=True, help="scene JSON path")
     parser.add_argument("--output_dir", required=True, help="output directory")
     args = parser.parse_args()
+
+    # Reserve stdout for JSONL only. Taichi prints its banner at the C/C++ level
+    # straight to file descriptor 1, so a Python-level sys.stdout swap is not enough:
+    # dup the real stdout fd for emit(), then redirect fd 1 -> fd 2 (stderr) so every
+    # native/print message goes to stderr instead of polluting the JSONL stream.
+    global _REAL_STDOUT
+    try:
+        real_fd = os.dup(1)
+        _REAL_STDOUT = os.fdopen(real_fd, "w", encoding="utf-8", buffering=1)
+        os.dup2(2, 1)
+    except (AttributeError, OSError):  # pragma: no cover - unusual platforms
+        pass
+    sys.stdout = sys.stderr  # Python-level print() -> stderr as well
 
     init_taichi()
     try:

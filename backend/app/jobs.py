@@ -103,31 +103,37 @@ class JobManager:
                "--scene_file", job.config_path,
                "--output_dir", job.output_dir]
         env = dict(os.environ)
+        # The solver writes JSONL to stdout and human logs / tracebacks to stderr.
+        # Keep the two apart: parse stdout as events, tee stderr to a per-job file.
+        log_path = os.path.join(job.output_dir, "solver.log")
         try:
             job.status = "running"
             self._publish(job.id, {"type": "status", "status": "running"})
-            job._proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, env=env, cwd=str(REPO_ROOT),
-            )
-            for line in job._proc.stdout:  # type: ignore[union-attr]
-                line = line.rstrip("\n")
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    job.log.append(line)
-                    self._publish(job.id, {"type": "log", "message": line})
-                    continue
-                etype = event.get("type")
-                if etype == "progress":
-                    job.progress = event
-                elif etype == "error":
-                    job.error = event.get("message")
-                self._publish(job.id, event)
+            with open(log_path, "w", encoding="utf-8") as log_file:
+                job._proc = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=log_file,
+                    text=True, bufsize=1, env=env, cwd=str(REPO_ROOT),
+                )
+                for line in job._proc.stdout:  # type: ignore[union-attr]
+                    line = line.rstrip("\n")
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        # stdout should be pure JSONL now; keep any stray line as a log.
+                        job.log.append(line)
+                        self._publish(job.id, {"type": "log", "message": line})
+                        continue
+                    etype = event.get("type")
+                    if etype == "progress":
+                        job.progress = event
+                    elif etype == "error":
+                        job.error = event.get("message")
+                    self._publish(job.id, event)
 
-            code = job._proc.wait()
+                code = job._proc.wait()
+
             if job.status == "canceled":
                 pass
             elif code == 0:
@@ -135,12 +141,21 @@ class JobManager:
                 self._publish(job.id, {"type": "status", "status": "completed"})
             else:
                 job.status = "failed"
-                job.error = job.error or f"solver exited with code {code}"
+                job.error = job.error or self._tail_log(log_path) or f"solver exited with code {code}"
                 self._publish(job.id, {"type": "status", "status": "failed", "error": job.error})
         except Exception as e:  # pragma: no cover
             job.status = "failed"
             job.error = repr(e)
             self._publish(job.id, {"type": "status", "status": "failed", "error": job.error})
+
+    @staticmethod
+    def _tail_log(log_path: str, n: int = 20) -> Optional[str]:
+        try:
+            with open(log_path, encoding="utf-8") as f:
+                lines = f.readlines()
+            return "".join(lines[-n:]).strip() or None
+        except OSError:
+            return None
 
 
 manager = JobManager()
