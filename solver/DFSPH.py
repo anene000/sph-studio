@@ -5,8 +5,12 @@ from sph_base import SPHBase
 class DFSPHSolver(SPHBase):
     def __init__(self, particle_system):
         super().__init__(particle_system)
-        
+
+        # Surface tension coefficient (field physics). Configurable with fallback.
         self.surface_tension = 0.01
+        _st = self.ps.cfg.get_cfg("surfaceTension")
+        if _st is not None:
+            self.surface_tension = _st
         self.dt[None] = self.ps.cfg.get_cfg("timeStepSize")
 
         self.enable_divergence_solver = True

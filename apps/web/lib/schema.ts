@@ -10,11 +10,14 @@ export const ConfigurationSchema = z
     particleRadius: z.number().default(0.01),
     simulationMethod: z.number().int().default(0), // 0=WCSPH, 4=DFSPH
     timeStepSize: z.number().default(4e-4),
-    gravitation: Vec3.default([0, -9.8, 0]),
+    gravitation: Vec3.default([0, -9.81, 0]),
     density0: z.number().default(1000),
-    stiffness: z.number().default(10000),
-    exponent: z.number().default(5),
-    boundaryHandlingMethod: z.number().int().default(2),
+    stiffness: z.number().default(50000),
+    exponent: z.number().default(7),
+    // Field physics (now solver-configurable).
+    viscosity: z.number().default(0.01),
+    surfaceTension: z.number().default(0.01),
+    boundaryHandlingMethod: z.number().int().default(0),
     enforceDomainFit: z.boolean().default(true),
     numberOfStepsPerRenderUpdate: z.number().int().default(1),
     totalTime: z.number().nullable().default(5),

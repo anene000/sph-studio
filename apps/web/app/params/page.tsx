@@ -27,6 +27,17 @@ export default function ParamsPage() {
             <option value={4}>4: DFSPH</option>
           </select>
         </Row>
+        <Row label="boundaryHandlingMethod">
+          <select
+            value={c.boundaryHandlingMethod}
+            onChange={(e) => mutate((s) => (s.Configuration.boundaryHandlingMethod = Number(e.target.value)))}
+            style={ui.input}
+          >
+            <option value={0}>0: 衝突ベース（現ソルバ固定）</option>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+          </select>
+        </Row>
 
         <h2 style={ui.h2}>基本パラメータ</h2>
         <Row label="particleRadius">
@@ -50,6 +61,14 @@ export default function ParamsPage() {
               />
             ))}
           </div>
+        </Row>
+
+        <h2 style={ui.h2}>場の物理（流体特性）</h2>
+        <Row label="viscosity 粘性">
+          <Num value={c.viscosity} step={0.001} onChange={(v) => mutate((s) => (s.Configuration.viscosity = v))} />
+        </Row>
+        <Row label="surfaceTension 表面張力">
+          <Num value={c.surfaceTension} step={0.001} onChange={(v) => mutate((s) => (s.Configuration.surfaceTension = v))} />
         </Row>
 
         <h2 style={ui.h2}>WCSPH 係数</h2>

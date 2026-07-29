@@ -14,6 +14,18 @@ Vec3 = List[float]
 
 
 class Configuration(BaseModel):
+    """① Analysis space + solver / field-physics / simulation settings.
+
+    Field-physics knobs actually consumed by the solver:
+      - gravitation, density0            (sph_base)
+      - stiffness, exponent              (WCSPH state equation)
+      - viscosity                        (sph_base viscosity force)
+      - surfaceTension                   (WCSPH/DFSPH non-pressure force)
+      - timeStepSize, particleRadius, simulationMethod
+    ``boundaryHandlingMethod`` is kept for template compatibility; the current
+    solver uses a fixed collision-based boundary (see sph_base.enforce_boundary_3D).
+    """
+
     model_config = {"extra": "allow"}
 
     domainStart: Vec3
@@ -21,11 +33,15 @@ class Configuration(BaseModel):
     particleRadius: float = 0.01
     simulationMethod: int = 0  # 0=WCSPH, 4=DFSPH
     timeStepSize: float = 4e-4
-    gravitation: Vec3 = Field(default_factory=lambda: [0.0, -9.8, 0.0])
+    gravitation: Vec3 = Field(default_factory=lambda: [0.0, -9.81, 0.0])
     density0: float = 1000.0
-    stiffness: float = 10000.0
-    exponent: float = 5.0
-    boundaryHandlingMethod: int = 2
+    # WCSPH state-equation parameters (P = stiffness * ((rho/rho0)^exponent - 1)).
+    stiffness: float = 50000.0
+    exponent: float = 7.0
+    # Field physics (previously hard-coded in the solver, now configurable).
+    viscosity: float = 0.01
+    surfaceTension: float = 0.01
+    boundaryHandlingMethod: int = 0
     enforceDomainFit: bool = True
     numberOfStepsPerRenderUpdate: int = 1
     totalTime: Optional[float] = 5.0

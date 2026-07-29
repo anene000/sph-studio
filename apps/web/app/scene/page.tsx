@@ -1,58 +1,56 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import StepNav from "@/components/StepNav";
+import { Vec3Edit, ColorEdit, ui } from "@/components/fields";
 import { api } from "@/lib/api";
 import { useSceneStore } from "@/lib/store";
 
-// react-three-fiber must run client-side only.
 const Viewer3D = dynamic(() => import("@/components/Viewer3D"), {
   ssr: false,
   loading: () => <div style={{ padding: 24, opacity: 0.6 }}>3D ビューを初期化中…</div>,
 });
 
-const AXES = ["x", "y", "z"];
-
-function Vec3Row({
-  label,
-  value,
-  onChange,
-  step = 0.01,
-}: {
-  label: string;
-  value: number[];
-  onChange: (axis: number, v: number) => void;
-  step?: number;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-      <span style={{ width: 92, fontSize: 12, opacity: 0.8 }}>{label}</span>
-      {AXES.map((ax, i) => (
-        <label key={ax} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <span style={{ fontSize: 11, opacity: 0.5 }}>{ax}</span>
-          <input
-            type="number"
-            step={step}
-            value={value[i]}
-            onChange={(e) => onChange(i, parseFloat(e.target.value))}
-            style={input}
-          />
-        </label>
-      ))}
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+      <span style={{ width: 78, fontSize: 11, opacity: 0.75 }}>{label}</span>
+      {children}
     </div>
   );
 }
 
 export default function ScenePage() {
-  const { scene, setDomain, setRigidVec, updateRigidBody, issues, setIssues } = useSceneStore();
+  const {
+    scene,
+    setDomain,
+    setRigidVec,
+    updateRigidBody,
+    updateFluidBlock,
+    mutate,
+    addFluidBlock,
+    removeFluidBlock,
+    addRigidBody,
+    removeRigidBody,
+    issues,
+    setIssues,
+  } = useSceneStore();
   const [busy, setBusy] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [pick, setPick] = useState("");
+
+  useEffect(() => {
+    api.listModels().then((d) => {
+      setModels(d.models);
+      if (d.models[0]) setPick(d.models[0]);
+    });
+  }, []);
 
   async function validate() {
     setBusy(true);
     try {
-      const res = await api.validate(scene);
-      setIssues(res.issues || []);
+      setIssues((await api.validate(scene)).issues || []);
     } catch (e) {
       setIssues([{ objectId: -1, level: "error", message: String(e) }]);
     } finally {
@@ -61,94 +59,114 @@ export default function ScenePage() {
   }
 
   return (
-    <main style={{ display: "grid", gridTemplateColumns: "320px 1fr 300px", height: "100vh" }}>
-      {/* Left: settings */}
-      <aside style={{ ...panel, borderRight: "1px solid #263041", overflowY: "auto" }}>
-        <Link href="/" style={{ fontSize: 12, opacity: 0.7 }}>
-          ← ホーム
-        </Link>
-        <h2 style={h2}>解析空間</h2>
-        <Vec3Row
-          label="domainStart"
-          value={scene.Configuration.domainStart}
-          onChange={(ax, v) => setDomain("domainStart", ax, v)}
-        />
-        <Vec3Row
-          label="domainEnd"
-          value={scene.Configuration.domainEnd}
-          onChange={(ax, v) => setDomain("domainEnd", ax, v)}
-        />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <StepNav />
+      <main style={{ display: "grid", gridTemplateColumns: "360px 1fr 300px", flex: 1, minHeight: 0 }}>
+        {/* Left: settings */}
+        <aside style={{ ...panel, borderRight: "1px solid #263041", overflowY: "auto" }}>
+          <h3 style={h3}>① 解析空間</h3>
+          <Field label="start">
+            <Vec3Edit value={scene.Configuration.domainStart} onChange={(a, v) => setDomain("domainStart", a, v)} step={0.1} />
+          </Field>
+          <Field label="end">
+            <Vec3Edit value={scene.Configuration.domainEnd} onChange={(a, v) => setDomain("domainEnd", a, v)} step={0.1} />
+          </Field>
 
-        <h2 style={h2}>オブジェクト（剛体）</h2>
-        {scene.RigidBodies.map((rb, i) => (
-          <div key={i} style={objCard}>
-            <div style={{ fontSize: 12, marginBottom: 6 }}>
-              #{rb.objectId} — {rb.geometryFile.split(/[\\/]/).pop()}
-            </div>
-            <Vec3Row
-              label="translation"
-              value={rb.translation}
-              onChange={(ax, v) => setRigidVec(i, "translation", ax, v)}
-            />
-            <Vec3Row
-              label="scale"
-              value={rb.scale}
-              step={0.001}
-              onChange={(ax, v) => setRigidVec(i, "scale", ax, v)}
-            />
+          {/* ② Fluid blocks (multiple) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+            <h3 style={h3}>② 流体ブロック</h3>
+            <button style={miniBtn} onClick={addFluidBlock}>＋追加</button>
           </div>
-        ))}
-
-        <button onClick={validate} disabled={busy} style={button}>
-          {busy ? "検証中…" : "解析空間フィット検証"}
-        </button>
-      </aside>
-
-      {/* Center: 3D preview */}
-      <section style={{ position: "relative" }}>
-        <Viewer3D scene={scene} />
-        <div style={overlay}>解析空間（橙枠）／流体ブロック（半透明）／剛体メッシュ</div>
-      </section>
-
-      {/* Right: validation / recommended scale */}
-      <aside style={{ ...panel, borderLeft: "1px solid #263041", overflowY: "auto" }}>
-        <h2 style={h2}>フィット検証結果</h2>
-        {issues.length === 0 && (
-          <p style={{ fontSize: 12, opacity: 0.6 }}>
-            「解析空間フィット検証」を実行してください。
-          </p>
-        )}
-        {issues.map((iss, k) => (
-          <div key={k} style={{ ...issueCard, borderColor: levelColor(iss.level) }}>
-            <div style={{ fontSize: 12, color: levelColor(iss.level) }}>
-              [{iss.level}] object #{iss.objectId}
+          {scene.FluidBlocks.map((b, i) => (
+            <div key={i} style={objCard}>
+              <div style={cardHead}>
+                <span>#{b.objectId} 流体</span>
+                <button style={rm} onClick={() => removeFluidBlock(i)}>削除</button>
+              </div>
+              <Field label="start"><Vec3Edit value={b.start} step={0.05} onChange={(a, v) => mutate((s) => (s.FluidBlocks[i].start[a] = v))} /></Field>
+              <Field label="end"><Vec3Edit value={b.end} step={0.05} onChange={(a, v) => mutate((s) => (s.FluidBlocks[i].end[a] = v))} /></Field>
+              <Field label="translation"><Vec3Edit value={b.translation} step={0.05} onChange={(a, v) => mutate((s) => (s.FluidBlocks[i].translation[a] = v))} /></Field>
+              <Field label="初速 velocity"><Vec3Edit value={b.velocity} step={0.1} onChange={(a, v) => mutate((s) => (s.FluidBlocks[i].velocity[a] = v))} /></Field>
+              <Field label="density">
+                <input type="number" step={1} value={b.density} onChange={(e) => updateFluidBlock(i, { density: parseFloat(e.target.value) })} style={{ ...ui.input, width: 90 }} />
+                <ColorEdit value={b.color} onChange={(c) => updateFluidBlock(i, { color: c })} />
+              </Field>
             </div>
-            <div style={{ fontSize: 12, margin: "4px 0" }}>{iss.message}</div>
-            {iss.recommendedScalePerAxis && (
-              <>
-                <div style={{ fontSize: 11, opacity: 0.8 }}>
-                  推奨 scale（軸別）: [{iss.recommendedScalePerAxis.map((v) => v.toFixed(4)).join(", ")}]
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.8 }}>
-                  推奨 scale（比保持）: [
-                  {iss.recommendedScaleUniform?.map((v) => v.toFixed(4)).join(", ")}]
-                </div>
-                <button
-                  style={{ ...button, marginTop: 6 }}
-                  onClick={() => {
-                    const idx = scene.RigidBodies.findIndex((r) => r.objectId === iss.objectId);
-                    if (idx >= 0 && iss.recommendedScalePerAxis)
-                      updateRigidBody(idx, { scale: iss.recommendedScalePerAxis });
-                  }}
-                >
-                  軸別の推奨 scale を適用
-                </button>
-              </>
-            )}
+          ))}
+
+          {/* ③ Rigid bodies (multiple) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+            <h3 style={h3}>③ 剛体モデル</h3>
           </div>
-        ))}
-      </aside>
-    </main>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...ui.input, width: 190 }}>
+              {models.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <button style={miniBtn} disabled={!pick} onClick={() => addRigidBody(`data/models/${pick}`)}>＋追加</button>
+          </div>
+          {scene.RigidBodies.map((rb, i) => (
+            <div key={i} style={objCard}>
+              <div style={cardHead}>
+                <span>#{rb.objectId} {rb.geometryFile.split(/[\\/]/).pop()}</span>
+                <button style={rm} onClick={() => removeRigidBody(i)}>削除</button>
+              </div>
+              <Field label="translation"><Vec3Edit value={rb.translation} onChange={(a, v) => setRigidVec(i, "translation", a, v)} /></Field>
+              <Field label="scale"><Vec3Edit value={rb.scale} step={0.01} onChange={(a, v) => setRigidVec(i, "scale", a, v)} /></Field>
+              <Field label="rotate axis"><Vec3Edit value={rb.rotationAxis} step={1} onChange={(a, v) => mutate((s) => (s.RigidBodies[i].rotationAxis[a] = v))} /></Field>
+              <Field label="rotate °">
+                <input type="number" step={5} value={rb.rotationAngle} onChange={(e) => updateRigidBody(i, { rotationAngle: parseFloat(e.target.value) })} style={{ ...ui.input, width: 70 }} />
+              </Field>
+              <Field label="初速 velocity"><Vec3Edit value={rb.velocity} step={0.5} onChange={(a, v) => mutate((s) => (s.RigidBodies[i].velocity[a] = v))} /></Field>
+              <Field label="density">
+                <input type="number" step={1} value={rb.density} onChange={(e) => updateRigidBody(i, { density: parseFloat(e.target.value) })} style={{ ...ui.input, width: 90 }} />
+                <ColorEdit value={rb.color} onChange={(c) => updateRigidBody(i, { color: c })} />
+              </Field>
+              <Field label="isDynamic">
+                <input type="checkbox" checked={rb.isDynamic} onChange={(e) => updateRigidBody(i, { isDynamic: e.target.checked })} />
+                <span style={{ fontSize: 11, opacity: 0.6 }}>{rb.isDynamic ? "動的（PBD剛体）" : "静的（固定壁）"}</span>
+              </Field>
+            </div>
+          ))}
+
+          <button onClick={validate} disabled={busy} style={{ ...ui.button, width: "100%", marginTop: 14 }}>
+            {busy ? "検証中…" : "解析空間フィット検証"}
+          </button>
+        </aside>
+
+        {/* Center: 3D preview */}
+        <section style={{ position: "relative", minHeight: 0 }}>
+          <Viewer3D scene={scene} />
+          <div style={overlay}>解析空間（橙枠）／流体ブロック（半透明）／剛体メッシュ</div>
+        </section>
+
+        {/* Right: validation */}
+        <aside style={{ ...panel, borderLeft: "1px solid #263041", overflowY: "auto" }}>
+          <h3 style={h3}>フィット検証結果</h3>
+          {issues.length === 0 && <p style={{ fontSize: 12, opacity: 0.6 }}>「検証」を実行してください。</p>}
+          {issues.map((iss, k) => (
+            <div key={k} style={{ ...objCard, borderColor: levelColor(iss.level) }}>
+              <div style={{ fontSize: 12, color: levelColor(iss.level) }}>[{iss.level}] object #{iss.objectId}</div>
+              <div style={{ fontSize: 12, margin: "4px 0" }}>{iss.message}</div>
+              {iss.recommendedScalePerAxis && (
+                <>
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>推奨(軸別): [{iss.recommendedScalePerAxis.map((v) => v.toFixed(4)).join(", ")}]</div>
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>推奨(比保持): [{iss.recommendedScaleUniform?.map((v) => v.toFixed(4)).join(", ")}]</div>
+                  <button
+                    style={{ ...ui.button, marginTop: 6, fontSize: 12, padding: "6px 10px" }}
+                    onClick={() => {
+                      const idx = scene.RigidBodies.findIndex((r) => r.objectId === iss.objectId);
+                      if (idx >= 0 && iss.recommendedScalePerAxis) updateRigidBody(idx, { scale: iss.recommendedScalePerAxis });
+                    }}
+                  >
+                    軸別の推奨 scale を適用
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </aside>
+      </main>
+    </div>
   );
 }
 
@@ -156,47 +174,10 @@ function levelColor(level: string) {
   return level === "error" ? "#e35d5d" : level === "warn" ? "#e3b25d" : "#5d9de3";
 }
 
-const panel: React.CSSProperties = { padding: 16, background: "#0e1420" };
-const h2: React.CSSProperties = { fontSize: 14, margin: "16px 0 8px" };
-const input: React.CSSProperties = {
-  width: 64,
-  background: "#111725",
-  border: "1px solid #263041",
-  color: "#e6e6e6",
-  borderRadius: 4,
-  padding: "3px 5px",
-  fontSize: 12,
-};
-const button: React.CSSProperties = {
-  width: "100%",
-  marginTop: 12,
-  padding: "8px 10px",
-  background: "#1f6feb",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 13,
-};
-const objCard: React.CSSProperties = {
-  border: "1px solid #263041",
-  borderRadius: 8,
-  padding: 10,
-  marginBottom: 10,
-  background: "#111725",
-};
-const issueCard: React.CSSProperties = {
-  border: "1px solid",
-  borderRadius: 8,
-  padding: 10,
-  marginBottom: 10,
-  background: "#111725",
-};
-const overlay: React.CSSProperties = {
-  position: "absolute",
-  bottom: 10,
-  left: 12,
-  fontSize: 11,
-  opacity: 0.6,
-  pointerEvents: "none",
-};
+const panel: React.CSSProperties = { padding: 14, background: "#0e1420" };
+const h3: React.CSSProperties = { fontSize: 13, margin: "6px 0" };
+const objCard: React.CSSProperties = { border: "1px solid #263041", borderRadius: 8, padding: 10, marginBottom: 8, background: "#111725" };
+const cardHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 };
+const miniBtn: React.CSSProperties = { fontSize: 12, padding: "4px 10px", background: "#1f6feb", color: "white", border: "none", borderRadius: 5, cursor: "pointer" };
+const rm: React.CSSProperties = { fontSize: 11, padding: "2px 8px", background: "#8b2f2f", color: "white", border: "none", borderRadius: 4, cursor: "pointer" };
+const overlay: React.CSSProperties = { position: "absolute", bottom: 10, left: 12, fontSize: 11, opacity: 0.6, pointerEvents: "none" };

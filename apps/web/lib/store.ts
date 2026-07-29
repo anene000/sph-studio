@@ -11,11 +11,13 @@ export const defaultScene: Scene = {
     particleRadius: 0.02,
     simulationMethod: 0,
     timeStepSize: 4e-4,
-    gravitation: [0, -9.8, 0],
+    gravitation: [0, -9.81, 0],
     density0: 1000,
-    stiffness: 10000,
-    exponent: 5,
-    boundaryHandlingMethod: 2,
+    stiffness: 50000,
+    exponent: 7,
+    viscosity: 0.01,
+    surfaceTension: 0.01,
+    boundaryHandlingMethod: 0,
     enforceDomainFit: true,
     numberOfStepsPerRenderUpdate: 1,
     totalTime: 0.5,
@@ -90,6 +92,51 @@ interface SceneStore {
   setIssues: (issues: ValidationIssue[]) => void;
   // Generic draft mutation for the params / export screens.
   mutate: (fn: (scene: Scene) => void) => void;
+  // Multiple ②/③ objects (same "name"/type may repeat).
+  addFluidBlock: () => void;
+  removeFluidBlock: (index: number) => void;
+  addRigidBody: (geometryFile: string) => void;
+  removeRigidBody: (index: number) => void;
+}
+
+// Unique objectId across the union of fluid + rigid objects (the solver keys its
+// object_collection by objectId regardless of type).
+function nextObjectId(scene: Scene): number {
+  const ids = [
+    ...scene.FluidBlocks.map((b) => b.objectId),
+    ...scene.RigidBlocks.map((b) => b.objectId),
+    ...scene.RigidBodies.map((r) => r.objectId),
+  ];
+  return ids.length ? Math.max(...ids) + 1 : 0;
+}
+
+function newFluidBlock(objectId: number): Block {
+  return {
+    objectId,
+    start: [0, 0, 0],
+    end: [0.3, 0.3, 0.3],
+    translation: [0.1, 0.1, 0.1],
+    scale: [1, 1, 1],
+    velocity: [0, 0, 0],
+    density: 1000,
+    color: [50, 100, 200],
+    isDynamic: false,
+  };
+}
+
+function newRigidBody(objectId: number, geometryFile: string): RigidBody {
+  return {
+    objectId,
+    geometryFile,
+    translation: [0.5, 0.5, 0.5],
+    scale: [1, 1, 1],
+    rotationAxis: [0, 1, 0],
+    rotationAngle: 0,
+    velocity: [0, 0, 0],
+    density: 1000,
+    color: [230, 230, 230],
+    isDynamic: false,
+  };
 }
 
 function clone<T>(v: T): T {
@@ -129,6 +176,32 @@ export const useSceneStore = create<SceneStore>((set) => ({
     set((s) => {
       const scene = clone(s.scene);
       fn(scene);
+      return { scene };
+    }),
+  addFluidBlock: () =>
+    set((s) => {
+      const scene = clone(s.scene);
+      scene.FluidBlocks.push(newFluidBlock(nextObjectId(scene)));
+      return { scene };
+    }),
+  removeFluidBlock: (index) =>
+    set((s) => {
+      const scene = clone(s.scene);
+      scene.FluidBlocks.splice(index, 1);
+      return { scene };
+    }),
+  addRigidBody: (geometryFile) =>
+    set((s) => {
+      const scene = clone(s.scene);
+      scene.RigidBodies.push(newRigidBody(nextObjectId(scene), geometryFile));
+      return { scene };
+    }),
+  removeRigidBody: (index) =>
+    set((s) => {
+      const scene = clone(s.scene);
+      const removed = scene.RigidBodies[index];
+      scene.RigidBodies.splice(index, 1);
+      if (removed) scene.Export.objects = scene.Export.objects.filter((o) => o.objectId !== removed.objectId);
       return { scene };
     }),
 }));

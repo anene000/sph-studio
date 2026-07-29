@@ -11,7 +11,12 @@ class SPHBase:
             self.g = ti.Vector([0.0, -9.81])
         self.g = np.array(self.ps.cfg.get_cfg("gravitation"))
 
+        # Kinematic viscosity of the fluid (field physics). Configurable; falls back
+        # to the historical default when the scene omits the key.
         self.viscosity = 0.01  # viscosity
+        _visc = self.ps.cfg.get_cfg("viscosity")
+        if _visc is not None:
+            self.viscosity = _visc
 
         self.density_0 = 1000.0  # reference density
         self.density_0 = self.ps.cfg.get_cfg("density0")
