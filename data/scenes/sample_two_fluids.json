@@ -1,0 +1,70 @@
+{
+  "Configuration": {
+    "domainStart": [0.0, 0.0, 0.0],
+    "domainEnd": [1.2, 1.0, 0.6],
+    "particleRadius": 0.02,
+    "simulationMethod": 0,
+    "timeStepSize": 0.0004,
+    "gravitation": [0.0, -9.81, 0.0],
+    "density0": 1000,
+    "stiffness": 50000,
+    "exponent": 7,
+    "viscosity": 0.02,
+    "surfaceTension": 0.01,
+    "boundaryHandlingMethod": 0,
+    "enforceDomainFit": true,
+    "numberOfStepsPerRenderUpdate": 1,
+    "totalTime": 0.8
+  },
+  "RigidBodies": [
+    {
+      "objectId": 1,
+      "geometryFile": "data/models/bunny_sparse.obj",
+      "translation": [0.6, 0.15, 0.3],
+      "scale": [1.0, 1.0, 1.0],
+      "rotationAxis": [0, 1, 0],
+      "rotationAngle": 0,
+      "velocity": [0.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [230, 230, 230],
+      "isDynamic": false
+    }
+  ],
+  "FluidBlocks": [
+    {
+      "objectId": 0,
+      "start": [0.0, 0.0, 0.0],
+      "end": [0.25, 0.6, 0.6],
+      "translation": [0.05, 0.35, 0.0],
+      "scale": [1, 1, 1],
+      "velocity": [1.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [50, 100, 200]
+    },
+    {
+      "objectId": 2,
+      "start": [0.0, 0.0, 0.0],
+      "end": [0.25, 0.6, 0.6],
+      "translation": [0.9, 0.35, 0.0],
+      "scale": [1, 1, 1],
+      "velocity": [-1.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [200, 120, 50]
+    }
+  ],
+  "Export": {
+    "outputDir": "outputs/two_fluids",
+    "interval": { "mode": "steps", "value": 50 },
+    "fluid": {
+      "enabled": true,
+      "objectIds": [0, 2],
+      "fields": ["position", "velocity", "density", "pressure"],
+      "format": "csv"
+    },
+    "objects": [
+      { "objectId": 1, "mode": "particles", "fields": ["position"], "format": "csv" }
+    ],
+    "ply": false,
+    "obj": false
+  }
+}
