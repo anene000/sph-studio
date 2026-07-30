@@ -7,10 +7,28 @@ Taichi ベースの SPH（流体・剛体連成）シミュレータに GUI を�
 - フロント: **TypeScript + Next.js**（react-three-fiber で 3D プレビュー／結果再生）
 - バックエンド: **Python + FastAPI**（ソルバをジョブ単位のサブプロセスで起動）
 - ソルバ: **Taichi**（WCSPH / DFSPH、ヘッドレス化）
-- 配布: 初期は Python を別プロセス起動、最終的に **Tauri + PyInstaller** で 1 アプリ同梱（Phase B）
+- 配布: **Tauri + PyInstaller** で 1 アプリ同梱（Phase B 完了）。**exe をクリックするだけで
+  バックエンドも自動起動**し、全機能が使える（Python のインストール不要）。
 
 > 設計・計画・テスト文書は [`docs/`](docs/) 参照（仕様書・機能一覧・画面遷移図・実装計画・
 > 非機能/UXテスト計画と結果）。
+
+---
+
+## ダウンロード（インストーラ）
+
+OS 別インストーラは [Releases](https://github.com/anene000/sph-studio/releases) から取得できる。
+
+| OS | 形式 |
+|----|------|
+| Windows | `*_x64-setup.exe`（NSIS）または `*_x64_en-US.msi` |
+| macOS (Apple Silicon) | `*_aarch64.dmg` |
+| Linux | `*_amd64.AppImage` / `*_amd64.deb` / `*.x86_64.rpm` |
+
+インストール後にアプリを起動するだけで、同梱のバックエンド（`sph-backend`）が自動起動する。
+出力（`outputs/`）や取り込んだモデル（`data/models/`）はアプリ実行ファイルと同じ場所に保存される。
+**エンドユーザーは Python/Node/Rust を入れる必要はない**（すべて同梱）。ただし OS によっては
+下記「外部依存」のランタイムが必要になる場合がある。
 
 ---
 
@@ -30,7 +48,7 @@ sph-studio/
 
 ---
 
-## 必要環境
+## 必要環境（開発時）
 
 | 種別 | 推奨 |
 |------|------|
@@ -41,6 +59,44 @@ sph-studio/
 
 依存は再現性のためバージョン固定（`==`）。フロントは `pnpm-lock.yaml`、Python は
 `backend/requirements.txt`・`solver/requirements.txt`・`backend/requirements-dev.txt`。
+
+---
+
+## 外部依存（パッケージ管理外で手動インストールが必要なもの）
+
+pip / pnpm / cargo で入らない、OS 提供のランタイムやツールチェイン。用途別にまとめる。
+
+### エンドユーザー（配布インストーラを実行するだけの人）
+
+- **Windows**
+  - **WebView2 ランタイム** — Tauri アプリの表示に必須。Windows 11 と最近の Windows 10 は
+    プリインストール済み。無い場合は Microsoft の
+    [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) を導入。
+    NSIS インストーラは通常これを自動導入する。
+  - **Microsoft Visual C++ 再頒布可能パッケージ（VC++ Redistributable, x64）** — 同梱の Python /
+    Taichi ネイティブ DLL が `vcruntime140*.dll` に依存するため、未導入だと起動しないことがある。
+    多くの環境で導入済みだが、無ければ
+    [最新の VC++ 再頒布可能パッケージ](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist) を入れる。
+- **macOS** — 追加ランタイム不要（`.dmg` を開いて Applications へ）。未署名のため初回は
+  「開発元を確認できない」警告 → 右クリック→開く、で許可。
+- **Linux** — AppImage はほぼ自己完結。deb/rpm や一部環境では **`libwebkit2gtk-4.1-0`** が必要。
+  - Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-0`
+- **GPU 高速化（任意・全 OS 共通）** — Vulkan 対応 GPU とドライバがあれば GPU 実行。無ければ
+  自動で CPU 実行にフォールバック（追加インストール不要）。
+
+### 開発者（ソースからビルドする人）
+
+- **Rust ツールチェイン**（`rustup`、Tauri のビルドに必須）。
+- **Windows: Visual Studio Build Tools**（「C++ によるデスクトップ開発」ワークロード）
+  — Rust の MSVC ターゲットが `link.exe` / Windows SDK を必要とする。
+- **macOS: Xcode Command Line Tools**（`xcode-select --install`）。
+- **Linux: WebView/ビルド依存** — `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`。
+- **Node.js + pnpm**、**Python 3.10〜3.12**。
+- サイドカー同梱ビルド時のみ **PyInstaller**（`pip install pyinstaller`、`scripts/build_sidecar.*`）。
+
+> CI（`.github/workflows/release.yml`）は上記を各 OS ランナーで自動セットアップして
+> インストーラを生成する。ローカルで完全同梱ビルドを作る手順は
+> [`apps/desktop/README.md`](apps/desktop/README.md) を参照。
 
 ---
 
@@ -186,29 +242,42 @@ SPH_ARCH=cpu .venv/Scripts/python scripts/benchmark.py
 
 ---
 
-## デスクトップ版（Phase B / Tauri）
+## デスクトップ版（Phase B / Tauri）— 完了
 
-フロントは静的エクスポート対応（`next.config.mjs` の `output: "export"`、動的画面は
-`/jobs?id=` `/results?id=` のクエリ方式）。`pnpm --filter web build` で `apps/web/out/` に
-静的サイトを生成し、**Tauri**（[`apps/desktop`](apps/desktop/README.md)）がそれをバンドルする。
+フロントは静的エクスポート（`next.config.mjs` の `output: "export"`、動的画面は
+`/jobs?id=` `/results?id=` のクエリ方式）で `apps/web/out/` を生成し、**Tauri**
+（[`apps/desktop`](apps/desktop/README.md)）がバンドルする。**バックエンド（FastAPI＋Taichi
+ソルバ）は PyInstaller で `sph-backend` バイナリ化し、Tauri サイドカーとして自動起動／終了**する。
 
+- **U18**: Tauri シェルで静的フロントを WebView 表示。
+- **U19**: `sph-backend` サイドカー同梱（`run_server.py` の統一エントリ＝サーバ／`--run-solver`、
+  frozen 時は自己再呼び出しでソルバ実行。`app/paths.py` で出力・モデルを exe 隣に解決）。
+- **U20**: `.github/workflows/release.yml`（`v*` タグ／手動）が ubuntu/windows/macos で
+  サイドカー生成→`tauri build`→インストーラを draft Release に添付。
+
+ローカルで完全同梱ビルドを作る場合（Rust 必須）:
 ```bash
-# 前提: Rust ツールチェイン（+ 各OSのWebView依存）
-pnpm --filter web build
-pnpm --dir apps/desktop tauri build     # OS別インストーラ
+bash scripts/build_sidecar.sh          # Windows: pwsh scripts/build_sidecar.ps1（要 PyInstaller）
+# tauri.conf.json の bundle に "externalBin": ["binaries/sph-backend"] を追加してから
+pnpm --dir apps/desktop tauri build
 ```
-
-- U18: Tauri シェルで静的フロントを WebView 表示（雛形配置済み）。
-- U19（次）: Python(FastAPI) を PyInstaller 化して Tauri **サイドカー**同梱。
-- U20（次）: OS別ビルドを CI で生成し Release 配布。
+> リリース CI は `externalBin` を自動注入するため、コミット済み `tauri.conf.json` には含めない
+> （サイドカー未生成でも通常の `tauri build` が通るようにするため）。詳細は
+> [`apps/desktop/README.md`](apps/desktop/README.md)。
 
 ---
 
 ## モデルデータ（.obj）
 
 サイズの大きい `.obj` はリポジトリに含めない（`data/models/README.md` 参照）。
-`bunny_sparse.obj` のみサンプル同梱。GUI の「③ 剛体を追加」でアップロードすると `data/models/`
-へ登録される。
+`bunny_sparse.obj` のみサンプル同梱。
+
+**外部 .obj の読み込み** は 2 通り:
+- GUI の「③ 剛体モデル → 外部 .obj を取り込む（アップロード）」で、任意の場所の `.obj` を選ぶと
+  `data/models/` へ登録され、そのまま剛体として追加される。
+- 追加の探索ディレクトリを環境変数 **`SPH_EXTRA_MODELS_DIR`**（`os.pathsep` 区切りで複数）に
+  指定すると、その中の `.obj` も一覧・プレビュー対象になる。`geometryFile` に絶対パスを
+  書いても解決される。
 
 ---
 
@@ -223,6 +292,9 @@ pnpm --dir apps/desktop tauri build     # OS別インストーラ
 | ジョブ一覧が空／`job not found` | バックエンド再起動でメモリ上のジョブは消える（`outputs/<id>` は残る） |
 | ポート使用中（10048 / EADDRINUSE） | 既存の uvicorn / next を停止してから起動 |
 | `trimesh` 由来の import エラー | `networkx` / `scipy` 未導入。`solver/requirements.txt` を導入 |
+| インストール後アプリが起動しない/白画面（Windows） | **WebView2 ランタイム**未導入。上記「外部依存」を参照 |
+| 起動直後に落ちる（Windows, DLL エラー） | **VC++ 再頒布可能パッケージ**未導入。上記「外部依存」を参照 |
+| 同梱アプリでジョブが `kernels parameters must be type annotated` | 古いビルド。`v0.0.1-rc3` 以降（Taichi ソース同梱修正済み）を使用 |
 
 ---
 
