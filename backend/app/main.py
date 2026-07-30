@@ -37,6 +37,21 @@ app.add_middleware(
 MODELS_DIR = REPO_ROOT / "data" / "models"
 
 
+def model_dirs() -> list[Path]:
+    """Model search roots: the bundled data/models plus any external directories from
+    the ``SPH_EXTRA_MODELS_DIR`` env var (os.pathsep-separated). Read per call so the
+    setting can change without restarting (and to keep it test-friendly)."""
+    dirs = [MODELS_DIR]
+    extra = os.environ.get("SPH_EXTRA_MODELS_DIR", "")
+    for part in extra.split(os.pathsep):
+        part = part.strip()
+        if part:
+            p = Path(part).expanduser()
+            if p not in dirs:
+                dirs.append(p)
+    return dirs
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "sph-studio-backend"}
@@ -48,6 +63,7 @@ def info():
     return {
         "repoRoot": str(REPO_ROOT),
         "modelsDir": str(MODELS_DIR),
+        "modelDirs": [str(d) for d in model_dirs()],
         "outputsDir": str(OUTPUTS_ROOT),
         "python": sys.executable,
         "arch": os.environ.get("SPH_ARCH", "auto (vulkan→cpu)"),
@@ -75,15 +91,26 @@ def config_validate(scene: Scene):
     return config_io.validate_scene(scene)
 
 
-# ---------- ② models ----------
+# ---------- ② models (bundled data/models + external SPH_EXTRA_MODELS_DIR) ----------
 @app.get("/api/models")
 def models_list():
+    """Aggregate .obj across all model roots (bundled + external). Unique by name."""
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    return {"models": [p.name for p in sorted(MODELS_DIR.glob("*.obj"))]}
+    names: list[str] = []
+    seen: set[str] = set()
+    for d in model_dirs():
+        if not d.exists():
+            continue
+        for p in sorted(d.glob("*.obj")):
+            if p.name not in seen:
+                seen.add(p.name)
+                names.append(p.name)
+    return {"models": names}
 
 
 @app.post("/api/models")
 async def models_upload(file: UploadFile):
+    """Import an external .obj (chosen from anywhere on disk) into data/models."""
     if not file.filename.lower().endswith(".obj"):
         raise HTTPException(status_code=400, detail="only .obj files are accepted")
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,12 +121,14 @@ async def models_upload(file: UploadFile):
 
 @app.get("/api/models/{name}")
 def model_file(name: str):
-    """Serve a raw .obj so the browser 3D preview (react-three-fiber) can load it."""
-    base = MODELS_DIR.resolve()
-    p = (base / name).resolve()
-    if base not in p.parents or not p.exists() or p.suffix.lower() != ".obj":
-        raise HTTPException(status_code=404, detail="model not found")
-    return FileResponse(p, media_type="text/plain", filename=p.name)
+    """Serve a raw .obj for the browser 3D preview. Searches every model root and
+    confines each lookup to that root (path-traversal safe)."""
+    for d in model_dirs():
+        base = d.resolve()
+        p = (base / name).resolve()
+        if (p == base or base in p.parents) and p.exists() and p.suffix.lower() == ".obj":
+            return FileResponse(p, media_type="text/plain", filename=p.name)
+    raise HTTPException(status_code=404, detail="model not found")
 
 
 # ---------- ⑤⑥ jobs ----------

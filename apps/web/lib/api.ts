@@ -40,6 +40,15 @@ export const api = {
   // Raw .obj URL for the 3D preview (react-three-fiber OBJLoader).
   modelUrl: (name: string) => `${BASE}/api/models/${encodeURIComponent(name)}`,
 
+  // Import an external .obj (any path on disk) via the OS file picker -> data/models.
+  uploadModel: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return fetch(`${BASE}/api/models`, { method: "POST", body: fd }).then((r) =>
+      json<{ name: string }>(r)
+    );
+  },
+
   createJob: (scene: Scene) =>
     fetch(`${BASE}/api/jobs`, {
       method: "POST",

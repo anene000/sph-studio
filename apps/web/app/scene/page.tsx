@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import StepNav from "@/components/StepNav";
 import { Vec3Edit, ColorEdit, ui } from "@/components/fields";
 import { api } from "@/lib/api";
@@ -39,13 +39,35 @@ export default function ScenePage() {
   const [busy, setBusy] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [pick, setPick] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const uploadRef = useRef<HTMLInputElement>(null);
+
+  function loadModels(select?: string) {
+    return api.listModels().then((d) => {
+      setModels(d.models);
+      setPick(select && d.models.includes(select) ? select : d.models[0] ?? "");
+    });
+  }
 
   useEffect(() => {
-    api.listModels().then((d) => {
-      setModels(d.models);
-      if (d.models[0]) setPick(d.models[0]);
-    });
+    loadModels();
   }, []);
+
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { name } = await api.uploadModel(file); // external .obj -> data/models
+      await loadModels(name);
+      addRigidBody(`data/models/${name}`); // add it immediately
+    } catch (err) {
+      setIssues([{ objectId: -1, level: "error", message: `アップロード失敗: ${err}` }]);
+    } finally {
+      setUploading(false);
+      if (uploadRef.current) uploadRef.current.value = "";
+    }
+  }
 
   async function validate() {
     setBusy(true);
@@ -98,11 +120,18 @@ export default function ScenePage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
             <h3 style={h3}>③ 剛体モデル</h3>
           </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...ui.input, width: 190 }}>
               {models.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <button style={miniBtn} disabled={!pick} onClick={() => addRigidBody(`data/models/${pick}`)}>＋追加</button>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <button style={{ ...miniBtn, background: "#21262d", border: "1px solid #30363d", width: "100%" }}
+              disabled={uploading} onClick={() => uploadRef.current?.click()}>
+              {uploading ? "取り込み中…" : "外部 .obj を取り込む（アップロード）"}
+            </button>
+            <input ref={uploadRef} type="file" accept=".obj" onChange={onUpload} style={{ display: "none" }} />
           </div>
           {scene.RigidBodies.map((rb, i) => (
             <div key={i} style={objCard}>
