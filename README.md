@@ -156,7 +156,7 @@ pnpm --filter web dev
 1. **S0 ホーム** — 新規計算 / ① 設定ファイル(JSON)インポート / バックエンド状態 / ジョブ一覧。
 2. **S1 シーン** — ①解析空間、②流体ブロック、③剛体を **複数** 追加・編集（3D 即時プレビュー）。
    「解析空間フィット検証」で超過時に**推奨倍率**を提示・ワンクリック適用。
-3. **S2 パラメータ** — ソルバ / 境界条件（**軸ごとの周期境界 ON/OFF・駆動力**）/ 場の物理（重力・粘性・表面張力）/ WCSPH 係数 / 計算範囲。
+3. **S2 パラメータ** — ソルバ / 境界条件（**軸ごとの周期境界 ON/OFF・駆動力・流入速度制御**）/ 場の物理（重力・粘性・表面張力）/ WCSPH 係数 / 計算範囲。
 4. **S3 出力設定** — 時間刻み間隔、流体フィールド、オブジェクト別個追跡。
 5. **S4 実行** — レビュー → 実行で **`scene.json` が自動生成**されソルバ起動。
 6. **S5 進捗** — WebSocket で進捗バー・ETA・ライブログ・キャンセル。
@@ -179,7 +179,8 @@ python solver/run_headless.py \
 
 サンプルシーン: `sample_bunny`（流体+剛体）, `sample_dambreak`（流体のみ）,
 `sample_two_fluids`（左右2流体+剛体、複数配置の例）,
-`sample_periodic_channel`（x 周期境界＋駆動力で流す周期チャネル流の例）。
+`sample_periodic_channel`（x 周期境界＋駆動力で流す周期チャネル流の例）,
+`sample_inlet_channel`（未満水からの流入速度制御・放物線プロファイルの例）。
 
 ---
 
@@ -200,6 +201,7 @@ SPH Studio は **SPH（Smoothed Particle Hydrodynamics, 平滑化粒子流体力
 | **流体–剛体連成（一方向/双方向）** | 固定壁・動的剛体と流体の相互作用 | 境界粒子の体積補正 + 圧力/粘性の反作用 |
 | **剛体運動** | 動的剛体（`isDynamic`）の並進・回転 | 形状マッチング（shape matching）による剛体拘束 |
 | **周期境界・完全発達流** | 周期チャネル流・連続流れ（流入口=流出口） | 周期境界（位置ラップ＋minimum-image 近傍探索）＋駆動体積力 |
+| **開放境界からの流入（未満水/連続流入）** | 未満水状態からの連続流入・非定常な流れの発達 | 流入ゾーンでの速度緩和（uniform/parabolic プロファイル・固定クランプではなく動的追従） |
 | **壁境界（衝突）** | 解析空間の壁での反射・すり抜け防止 | `enforce_boundary` による衝突応答（非周期軸） |
 
 ### 解法・数値スキーム
@@ -246,6 +248,12 @@ SPH Studio は **SPH（Smoothed Particle Hydrodynamics, 平滑化粒子流体力
 | `boundaryHandlingMethod` | 境界方式（現状は衝突ベース固定・将来拡張用） | — |
 | `periodicBoundary` | 軸ごとの周期境界フラグ `[x,y,z]`（true=開放/周期, false=壁） | 境界開放・近傍探索（minimum-image） |
 | `drivingForce` | 周期流を維持する駆動加速度 `[x,y,z]` [m/s²]（圧力勾配相当） | 流体の体積力 |
+| `inletControl` | 流入速度制御の ON/OFF（開放/非周期・未満水向け） | 流入ゾーンの速度緩和 |
+| `inletAxis` / `inletSide` | 流入軸（0/1/2）と流入側（`low`/`high`） | 流入ゾーン判定 |
+| `inletVelocity` | 目標流入速度 `[x,y,z]` [m/s] | 速度緩和の目標値 |
+| `inletThickness` | 流入ゾーンの厚み [m]（0=自動: 2×support） | 流入ゾーン判定 |
+| `inletRelaxation` | 緩和係数 0〜1（1=即時, 小=緩やか） | 動的流入の追従度 |
+| `inletProfile` / `profileAxis` | `uniform`/`parabolic` と横断軸 | 速度プロファイル形状 |
 | `enforceDomainFit` | 超過時に推奨倍率を出しエラー終了 | 事前検証 |
 | `totalTime` または `totalSteps` | 総計算時間／総ステップ | ループ長 |
 

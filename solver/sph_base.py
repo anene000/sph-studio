@@ -279,6 +279,38 @@ class SPHBase:
                     self.enforce_boundary_3D(self.ps.material_solid)
 
 
+    @ti.kernel
+    def apply_inlet_velocity(self):
+        # Impose the target inlet velocity (optionally a parabolic profile) on fluid
+        # particles inside the inlet zone. Velocity is relaxed toward the target so
+        # the inflow is a dynamic condition, not a hard fixed value. Applied every
+        # step; only affects particles that have actually reached the inlet zone, so
+        # an initially under-filled domain fills/follows smoothly.
+        ax = ti.static(self.ps.inlet_axis)
+        pax = ti.static(self.ps.profile_axis)
+        pn = self.ps.particle_num[None]
+        for p_i in range(pn):
+            if self.ps.material[p_i] == self.ps.material_fluid and self.ps.is_dynamic[p_i]:
+                pos = self.ps.x[p_i]
+                lo = self.ps.domain_start_ti[None][ax]
+                hi = self.ps.domain_end_ti[None][ax]
+                in_zone = False
+                if ti.static(self.ps.inlet_side_low):
+                    in_zone = pos[ax] <= lo + self.ps.inlet_thickness
+                else:
+                    in_zone = pos[ax] >= hi - self.ps.inlet_thickness
+                if in_zone:
+                    factor = 1.0
+                    if ti.static(self.ps.inlet_parabolic):
+                        plo = self.ps.domain_start_ti[None][pax]
+                        phi = self.ps.domain_end_ti[None][pax]
+                        center = 0.5 * (plo + phi)
+                        half = 0.5 * (phi - plo)
+                        t = (pos[pax] - center) / half
+                        factor = ti.max(0.0, 1.0 - t * t)
+                    target = self.ps.inlet_velocity_ti[None] * factor
+                    self.ps.v[p_i] += self.ps.inlet_relaxation * (target - self.ps.v[p_i])
+
     def step(self):
         self.ps.initialize_particle_system()
         self.compute_moving_boundary_volume()
@@ -288,3 +320,5 @@ class SPHBase:
             self.enforce_boundary_2D(self.ps.material_fluid)
         elif self.ps.dim == 3:
             self.enforce_boundary_3D(self.ps.material_fluid)
+        if self.ps.inlet_control:
+            self.apply_inlet_velocity()

@@ -24,6 +24,17 @@ export const ConfigurationSchema = z
     // constant acceleration (m/s^2) added to fluid to drive the periodic flow.
     periodicBoundary: z.array(z.boolean()).default([false, false, false]),
     drivingForce: Vec3.default([0, 0, 0]),
+    // Inlet velocity control (open-boundary inflow profile). Relaxes fluid velocity
+    // inside a thin inlet zone toward inletVelocity (optionally a parabolic profile),
+    // for non-periodic / under-filled setups. inletThickness=0 -> auto (2*support).
+    inletControl: z.boolean().default(false),
+    inletAxis: z.number().int().default(0),
+    inletSide: z.enum(["low", "high"]).default("low"),
+    inletVelocity: Vec3.default([0, 0, 0]),
+    inletThickness: z.number().default(0),
+    inletRelaxation: z.number().default(1),
+    inletProfile: z.enum(["uniform", "parabolic"]).default("uniform"),
+    profileAxis: z.number().int().default(1),
     enforceDomainFit: z.boolean().default(true),
     numberOfStepsPerRenderUpdate: z.number().int().default(1),
     totalTime: z.number().nullable().default(5),
@@ -45,6 +56,18 @@ export const ConfigurationSchema = z
   .refine(
     (c) => c.drivingForce.length === c.domainStart.length,
     { message: "drivingForce must have one component per axis" }
+  )
+  .refine(
+    (c) => c.inletVelocity.length === c.domainStart.length,
+    { message: "inletVelocity must have one component per axis" }
+  )
+  .refine(
+    (c) => c.inletAxis >= 0 && c.inletAxis < c.domainStart.length,
+    { message: "inletAxis must be a valid axis index" }
+  )
+  .refine(
+    (c) => c.profileAxis >= 0 && c.profileAxis < c.domainStart.length,
+    { message: "profileAxis must be a valid axis index" }
   );
 
 export const RigidBodySchema = z

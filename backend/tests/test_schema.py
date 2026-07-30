@@ -86,3 +86,54 @@ def test_driving_force_length_must_match_dim():
         assert False, "expected validation error for mismatched drivingForce length"
     except Exception:
         pass
+
+
+def test_inlet_control_defaults_off():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    scene = config_io.parse_scene(data)
+    c = scene.Configuration
+    assert c.inletControl is False
+    assert c.inletVelocity == [0.0, 0.0, 0.0]
+    assert c.inletSide == "low"
+    assert c.inletProfile == "uniform"
+
+
+def test_inlet_control_round_trip():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"].update({
+        "inletControl": True,
+        "inletAxis": 0,
+        "inletSide": "low",
+        "inletVelocity": [1.0, 0.0, 0.0],
+        "inletThickness": 0.1,
+        "inletRelaxation": 0.5,
+        "inletProfile": "parabolic",
+        "profileAxis": 1,
+    })
+    scene = config_io.parse_scene(data)
+    dumped = config_io.scene_to_dict(scene)
+    cfg = dumped["Configuration"]
+    assert cfg["inletControl"] is True
+    assert cfg["inletVelocity"] == [1.0, 0.0, 0.0]
+    assert cfg["inletProfile"] == "parabolic"
+    assert cfg["inletSide"] == "low"
+
+
+def test_inlet_velocity_length_must_match_dim():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["inletVelocity"] = [1.0, 0.0]  # dim is 3
+    try:
+        config_io.parse_scene(data)
+        assert False, "expected validation error for mismatched inletVelocity length"
+    except Exception:
+        pass
+
+
+def test_inlet_axis_out_of_range_rejected():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["inletAxis"] = 5  # dim is 3
+    try:
+        config_io.parse_scene(data)
+        assert False, "expected validation error for out-of-range inletAxis"
+    except Exception:
+        pass

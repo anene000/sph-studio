@@ -51,6 +51,19 @@ class Configuration(BaseModel):
     #     particles to drive/maintain the periodic ("fully-developed") flow.
     periodicBoundary: List[bool] = Field(default_factory=lambda: [False, False, False])
     drivingForce: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    # Inlet velocity control (open-boundary inflow profile). For non-periodic or
+    # initially under-filled setups: impose a target inlet velocity (optionally a
+    # parabolic profile) on fluid inside a thin inlet zone. The velocity is relaxed
+    # toward the target (inletRelaxation in [0,1]) so the inflow is dynamic, not a
+    # fixed constant. inletThickness=0 -> auto (2 * support radius).
+    inletControl: bool = False
+    inletAxis: int = 0
+    inletSide: Literal["low", "high"] = "low"
+    inletVelocity: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    inletThickness: float = 0.0
+    inletRelaxation: float = 1.0
+    inletProfile: Literal["uniform", "parabolic"] = "uniform"
+    profileAxis: int = 1
     enforceDomainFit: bool = True
     numberOfStepsPerRenderUpdate: int = 1
     totalTime: Optional[float] = 5.0
@@ -68,6 +81,12 @@ class Configuration(BaseModel):
             raise ValueError("periodicBoundary must have one flag per axis (same length as domainStart)")
         if len(self.drivingForce) != dim:
             raise ValueError("drivingForce must have one component per axis (same length as domainStart)")
+        if len(self.inletVelocity) != dim:
+            raise ValueError("inletVelocity must have one component per axis (same length as domainStart)")
+        if not (0 <= self.inletAxis < dim):
+            raise ValueError("inletAxis must be a valid axis index (0..dim-1)")
+        if not (0 <= self.profileAxis < dim):
+            raise ValueError("profileAxis must be a valid axis index (0..dim-1)")
         return self
 
 

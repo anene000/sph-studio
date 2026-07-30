@@ -17,6 +17,9 @@ export default function ParamsPage() {
   const periodic = c.periodicBoundary ?? [false, false, false];
   const drive = c.drivingForce ?? [0, 0, 0];
   const anyPeriodic = periodic.some(Boolean);
+  // Inlet velocity control (open-boundary inflow profile).
+  const inletControl = c.inletControl ?? false;
+  const inletVelocity = c.inletVelocity ?? [0, 0, 0];
 
   return (
     <>
@@ -119,6 +122,92 @@ export default function ParamsPage() {
             ? "周期軸に沿って一定の駆動力（圧力勾配相当）を与えると、完全発達流を維持できます。重力OFF＋駆動力で周期チャネル流が作れます。"
             : "周期境界がすべてOFFのときは駆動力のみが働きます（通常は0のままでOK）。"}
         </div>
+
+        <Row label="流入速度制御 inletControl">
+          <input
+            type="checkbox"
+            checked={inletControl}
+            onChange={(e) => mutate((s) => (s.Configuration.inletControl = e.target.checked))}
+          />
+        </Row>
+        {inletControl && (
+          <>
+            <p style={{ fontSize: 12, opacity: 0.7, margin: "0 0 8px" }}>
+              流入口ゾーンの流体速度を<strong>目標プロファイルへ緩和</strong>させます（固定クランプではなく、
+              到達した粒子だけを動的に制御）。<strong>未満水・非周期の連続流入</strong>に使います。
+            </p>
+            <Row label="流入軸 inletAxis / 流入側 inletSide">
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  value={c.inletAxis ?? 0}
+                  onChange={(e) => mutate((s) => (s.Configuration.inletAxis = Number(e.target.value)))}
+                  style={ui.input}
+                >
+                  {[0, 1, 2].map((i) => (
+                    <option key={i} value={i}>{axisLabels[i]} 軸</option>
+                  ))}
+                </select>
+                <select
+                  value={c.inletSide ?? "low"}
+                  onChange={(e) => mutate((s) => (s.Configuration.inletSide = e.target.value as "low" | "high"))}
+                  style={ui.input}
+                >
+                  <option value="low">low（始端）</option>
+                  <option value="high">high（終端）</option>
+                </select>
+              </div>
+            </Row>
+            <Row label="流入速度 inletVelocity (x,y,z) [m/s]">
+              <div style={{ display: "flex", gap: 6 }}>
+                {[0, 1, 2].map((i) => (
+                  <Num
+                    key={i}
+                    width={70}
+                    value={inletVelocity[i] ?? 0}
+                    step={0.1}
+                    onChange={(v) =>
+                      mutate((s) => {
+                        const cfg = s.Configuration;
+                        if (!cfg.inletVelocity) cfg.inletVelocity = [0, 0, 0];
+                        cfg.inletVelocity[i] = v;
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </Row>
+            <Row label="流入ゾーン厚み inletThickness [m]（0=自動）">
+              <Num value={c.inletThickness ?? 0} step={0.01} onChange={(v) => mutate((s) => (s.Configuration.inletThickness = v))} />
+            </Row>
+            <Row label="緩和係数 inletRelaxation (0〜1)">
+              <Num value={c.inletRelaxation ?? 1} step={0.05} onChange={(v) => mutate((s) => (s.Configuration.inletRelaxation = v))} />
+            </Row>
+            <Row label="速度プロファイル inletProfile">
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  value={c.inletProfile ?? "uniform"}
+                  onChange={(e) => mutate((s) => (s.Configuration.inletProfile = e.target.value as "uniform" | "parabolic"))}
+                  style={ui.input}
+                >
+                  <option value="uniform">uniform（一様）</option>
+                  <option value="parabolic">parabolic（放物線）</option>
+                </select>
+                {(c.inletProfile ?? "uniform") === "parabolic" && (
+                  <select
+                    value={c.profileAxis ?? 1}
+                    onChange={(e) => mutate((s) => (s.Configuration.profileAxis = Number(e.target.value)))}
+                    style={ui.input}
+                    title="プロファイルの横断方向（壁でゼロ・中央で最大）"
+                  >
+                    {[0, 1, 2].map((i) => (
+                      <option key={i} value={i}>横断軸 {axisLabels[i]}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </Row>
+          </>
+        )}
 
         <h2 style={ui.h2}>基本パラメータ</h2>
         <Row label="particleRadius">

@@ -95,6 +95,42 @@ class ParticleSystem:
         self.domain_size_ti[None] = ti.Vector(list(self.domain_size.astype(np.float32)))
         print("periodic boundary: ", self.periodic)
 
+        # ========== Inlet velocity control (open-boundary inflow profile) ==========
+        # For open / non-periodic or initially under-filled setups: impose a target
+        # inlet velocity (optionally a parabolic profile across the channel) on fluid
+        # particles that are inside a thin inlet zone. The velocity is RELAXED toward
+        # the target (inletRelaxation in [0,1]) rather than hard-clamped, so the flow
+        # follows its arrival/unsteady development instead of a fixed constant value.
+        self.inlet_control = bool(self.cfg.get_cfg("inletControl") or False)
+        _ia = self.cfg.get_cfg("inletAxis")
+        self.inlet_axis = int(_ia) if _ia is not None else 0
+        assert 0 <= self.inlet_axis < self.dim, \
+            f"inletAxis must be in [0, {self.dim}), got {self.inlet_axis}"
+        # Which end of inletAxis is the inlet: "low" (domain start) or "high" (end).
+        self.inlet_side_low = (self.cfg.get_cfg("inletSide") or "low") != "high"
+        _iv = self.cfg.get_cfg("inletVelocity")
+        if _iv is None:
+            _iv = [0.0] * self.dim
+        assert len(_iv) == self.dim, \
+            f"inletVelocity must have length {self.dim}, got {_iv}"
+        self.inlet_velocity_ti = ti.Vector.field(self.dim, dtype=ti.f32, shape=())
+        self.inlet_velocity_ti[None] = ti.Vector([float(v) for v in _iv])
+        _it = self.cfg.get_cfg("inletThickness")
+        # Default inlet-zone thickness = 2 * support radius (a couple of particle layers).
+        self.inlet_thickness = float(_it) if _it else 2.0 * self.support_radius
+        _ir = self.cfg.get_cfg("inletRelaxation")
+        self.inlet_relaxation = float(_ir) if _ir is not None else 1.0
+        # "uniform" (flat) or "parabolic" (Poiseuille-like, 0 at walls / max at center).
+        self.inlet_parabolic = (self.cfg.get_cfg("inletProfile") or "uniform") == "parabolic"
+        _pa = self.cfg.get_cfg("profileAxis")
+        self.profile_axis = int(_pa) if _pa is not None else (1 if self.dim > 1 else 0)
+        assert 0 <= self.profile_axis < self.dim, \
+            f"profileAxis must be in [0, {self.dim}), got {self.profile_axis}"
+        if self.inlet_control:
+            print(f"inlet control: axis={self.inlet_axis} side={'low' if self.inlet_side_low else 'high'} "
+                  f"v={_iv} thickness={self.inlet_thickness} profile="
+                  f"{'parabolic' if self.inlet_parabolic else 'uniform'}")
+
         # All objects id and its particle num
         self.object_collection = dict()
         self.object_id_rigid_body = set()
