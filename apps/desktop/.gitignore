@@ -1,3 +1,10 @@
 /node_modules/
 /src-tauri/target/
 /src-tauri/gen/
+
+# `tauri icon` also emits mobile/store variants we don't build for; keep only the
+# desktop icons referenced by tauri.conf.json (png set + .ico/.icns).
+/src-tauri/icons/android/
+/src-tauri/icons/ios/
+/src-tauri/icons/Square*.png
+/src-tauri/icons/StoreLogo.png

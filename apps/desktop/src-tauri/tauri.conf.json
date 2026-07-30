@@ -22,7 +22,6 @@
       }
     ],
     "security": {
-      "comment": "Local desktop app; the WebView talks to the bundled FastAPI sidecar on 127.0.0.1:8000. CSP disabled for the local API/WebSocket (hardened in a later pass).",
       "csp": null
     }
   },
