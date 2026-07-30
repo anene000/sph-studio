@@ -1,0 +1,46 @@
+{
+  "Configuration": {
+    "domainStart": [0.0, 0.0, 0.0],
+    "domainEnd": [1.0, 0.5, 0.2],
+    "particleRadius": 0.02,
+    "simulationMethod": 0,
+    "timeStepSize": 0.0004,
+    "gravitation": [0.0, 0.0, 0.0],
+    "density0": 1000,
+    "stiffness": 10000,
+    "exponent": 5,
+    "viscosity": 0.05,
+    "surfaceTension": 0.01,
+    "boundaryHandlingMethod": 0,
+    "periodicBoundary": [true, false, false],
+    "drivingForce": [5.0, 0.0, 0.0],
+    "enforceDomainFit": true,
+    "numberOfStepsPerRenderUpdate": 1,
+    "totalTime": 1.0
+  },
+  "FluidBlocks": [
+    {
+      "objectId": 0,
+      "start": [0.0, 0.12, 0.0],
+      "end": [1.0, 0.38, 0.2],
+      "translation": [0.0, 0.0, 0.0],
+      "scale": [1, 1, 1],
+      "velocity": [0.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [50, 100, 200]
+    }
+  ],
+  "Export": {
+    "outputDir": "outputs/periodic_channel",
+    "interval": { "mode": "steps", "value": 50 },
+    "fluid": {
+      "enabled": true,
+      "objectIds": [0],
+      "fields": ["position", "velocity", "density", "pressure"],
+      "format": "csv"
+    },
+    "objects": [],
+    "ply": false,
+    "obj": false
+  }
+}

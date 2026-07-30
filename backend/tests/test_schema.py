@@ -42,3 +42,47 @@ def test_validate_scene_ok_for_fitting_object():
     scene = config_io.parse_scene(data)
     result = config_io.validate_scene(scene)
     assert "ok" in result and "issues" in result
+
+
+def test_periodic_boundary_defaults_off():
+    # A scene without the boundary keys defaults to all-wall / zero driving force.
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    scene = config_io.parse_scene(data)
+    assert scene.Configuration.periodicBoundary == [False, False, False]
+    assert scene.Configuration.drivingForce == [0.0, 0.0, 0.0]
+    # And they survive an export round-trip.
+    dumped = config_io.scene_to_dict(scene)
+    assert dumped["Configuration"]["periodicBoundary"] == [False, False, False]
+    assert dumped["Configuration"]["drivingForce"] == [0.0, 0.0, 0.0]
+
+
+def test_periodic_boundary_and_driving_force_round_trip():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["periodicBoundary"] = [True, False, False]
+    data["Configuration"]["drivingForce"] = [5.0, 0.0, 0.0]
+    scene = config_io.parse_scene(data)
+    assert scene.Configuration.periodicBoundary == [True, False, False]
+    assert scene.Configuration.drivingForce == [5.0, 0.0, 0.0]
+    dumped = config_io.scene_to_dict(scene)
+    assert dumped["Configuration"]["periodicBoundary"] == [True, False, False]
+    assert dumped["Configuration"]["drivingForce"] == [5.0, 0.0, 0.0]
+
+
+def test_periodic_boundary_length_must_match_dim():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["periodicBoundary"] = [True, False]  # dim is 3
+    try:
+        config_io.parse_scene(data)
+        assert False, "expected validation error for mismatched periodicBoundary length"
+    except Exception:
+        pass
+
+
+def test_driving_force_length_must_match_dim():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["drivingForce"] = [1.0, 0.0]  # dim is 3
+    try:
+        config_io.parse_scene(data)
+        assert False, "expected validation error for mismatched drivingForce length"
+    except Exception:
+        pass

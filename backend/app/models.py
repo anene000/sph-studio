@@ -42,6 +42,15 @@ class Configuration(BaseModel):
     viscosity: float = 0.01
     surfaceTension: float = 0.01
     boundaryHandlingMethod: int = 0
+    # Boundary opening / periodic flow (per-axis, length = dim).
+    #   periodicBoundary[d]=True  -> axis d is opened as a periodic boundary:
+    #     the wall is removed, particles that leave one side re-enter on the
+    #     opposite side, and the neighbor search wraps across the seam with the
+    #     minimum-image convention (continuous flow field). Fixed particle count.
+    #   drivingForce[d]           -> constant acceleration (m/s^2) added to fluid
+    #     particles to drive/maintain the periodic ("fully-developed") flow.
+    periodicBoundary: List[bool] = Field(default_factory=lambda: [False, False, False])
+    drivingForce: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     enforceDomainFit: bool = True
     numberOfStepsPerRenderUpdate: int = 1
     totalTime: Optional[float] = 5.0
@@ -54,6 +63,11 @@ class Configuration(BaseModel):
         for a, b in zip(self.domainStart, self.domainEnd, strict=False):
             if b <= a:
                 raise ValueError("domainEnd must be strictly greater than domainStart on every axis")
+        dim = len(self.domainStart)
+        if len(self.periodicBoundary) != dim:
+            raise ValueError("periodicBoundary must have one flag per axis (same length as domainStart)")
+        if len(self.drivingForce) != dim:
+            raise ValueError("drivingForce must have one component per axis (same length as domainStart)")
         return self
 
 

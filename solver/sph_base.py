@@ -24,6 +24,16 @@ class SPHBase:
         self.dt = ti.field(float, shape=())
         self.dt[None] = 1e-4
 
+        # Driving body force (acceleration, m/s^2) applied to fluid particles.
+        # Used to maintain the flow in a periodic / fully-developed channel by
+        # emulating a constant pressure gradient. Defaults to zero (no driving).
+        drive = self.ps.cfg.get_cfg("drivingForce")
+        if drive is None:
+            drive = [0.0] * self.ps.dim
+        assert len(drive) == self.ps.dim, \
+            f"drivingForce must have length {self.ps.dim}, got {drive}"
+        self.drive_force = np.array(drive, dtype=np.float64)
+
     @ti.func
     def cubic_kernel(self, r_norm):
         res = ti.cast(0.0, ti.f32)
@@ -104,9 +114,9 @@ class SPHBase:
             self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
 
     @ti.func
-    def compute_boundary_volume_task(self, p_i, p_j, delta: ti.template()):
+    def compute_boundary_volume_task(self, p_i, p_j, r: ti.template(), delta: ti.template()):
         if self.ps.material[p_j] == self.ps.material_solid:
-            delta += self.cubic_kernel((self.ps.x[p_i] - self.ps.x[p_j]).norm())
+            delta += self.cubic_kernel(r.norm())
 
 
     @ti.kernel
@@ -130,27 +140,34 @@ class SPHBase:
         self.ps.v[p_i] -= (
             1.0 + c_f) * self.ps.v[p_i].dot(vec) * vec
 
+    @ti.func
+    def wrap_periodic_axis(self, p_i, d: ti.template()):
+        # Recirculate a particle that crossed a periodic boundary back to the
+        # opposite side of the domain (fixed particle count, no emission/removal).
+        size = self.ps.domain_end_ti[None][d] - self.ps.domain_start_ti[None][d]
+        if self.ps.x[p_i][d] >= self.ps.domain_end_ti[None][d]:
+            self.ps.x[p_i][d] -= size
+        if self.ps.x[p_i][d] < self.ps.domain_start_ti[None][d]:
+            self.ps.x[p_i][d] += size
+
     @ti.kernel
     def enforce_boundary_2D(self, particle_type:int):
         pn = self.ps.particle_num[None]
         for p_i in range(pn):
         #for p_i in ti.grouped(self.ps.x):
-            if self.ps.material[p_i] == particle_type and self.ps.is_dynamic[p_i]: 
+            if self.ps.material[p_i] == particle_type and self.ps.is_dynamic[p_i]:
                 pos = self.ps.x[p_i]
                 collision_normal = ti.Vector([0.0, 0.0])
-                if pos[0] > self.ps.domain_size[0] - self.ps.padding:
-                    collision_normal[0] += 1.0
-                    self.ps.x[p_i][0] = self.ps.domain_size[0] - self.ps.padding
-                if pos[0] <= self.ps.padding:
-                    collision_normal[0] += -1.0
-                    self.ps.x[p_i][0] = self.ps.padding
-
-                if pos[1] > self.ps.domain_size[1] - self.ps.padding:
-                    collision_normal[1] += 1.0
-                    self.ps.x[p_i][1] = self.ps.domain_size[1] - self.ps.padding
-                if pos[1] <= self.ps.padding:
-                    collision_normal[1] += -1.0
-                    self.ps.x[p_i][1] = self.ps.padding
+                for d in ti.static(range(2)):
+                    if self.ps.periodic_ti[None][d] == 1:
+                        self.wrap_periodic_axis(p_i, d)
+                    else:
+                        if pos[d] > self.ps.domain_size[d] - self.ps.padding:
+                            collision_normal[d] += 1.0
+                            self.ps.x[p_i][d] = self.ps.domain_size[d] - self.ps.padding
+                        if pos[d] <= self.ps.padding:
+                            collision_normal[d] += -1.0
+                            self.ps.x[p_i][d] = self.ps.padding
                 collision_normal_length = collision_normal.norm()
                 if collision_normal_length > 1e-6:
                     self.simulate_collisions(
@@ -164,26 +181,16 @@ class SPHBase:
             if self.ps.material[p_i] == particle_type and self.ps.is_dynamic[p_i]:
                 pos = self.ps.x[p_i]
                 collision_normal = ti.Vector([0.0, 0.0, 0.0])
-                if pos[0] > self.ps.domain_size[0] - self.ps.padding:
-                    collision_normal[0] += 1.0
-                    self.ps.x[p_i][0] = self.ps.domain_size[0] - self.ps.padding
-                if pos[0] <= self.ps.padding:
-                    collision_normal[0] += -1.0
-                    self.ps.x[p_i][0] = self.ps.padding
-
-                if pos[1] > self.ps.domain_size[1] - self.ps.padding:
-                    collision_normal[1] += 1.0
-                    self.ps.x[p_i][1] = self.ps.domain_size[1] - self.ps.padding
-                if pos[1] <= self.ps.padding:
-                    collision_normal[1] += -1.0
-                    self.ps.x[p_i][1] = self.ps.padding
-
-                if pos[2] > self.ps.domain_size[2] - self.ps.padding:
-                    collision_normal[2] += 1.0
-                    self.ps.x[p_i][2] = self.ps.domain_size[2] - self.ps.padding
-                if pos[2] <= self.ps.padding:
-                    collision_normal[2] += -1.0
-                    self.ps.x[p_i][2] = self.ps.padding
+                for d in ti.static(range(3)):
+                    if self.ps.periodic_ti[None][d] == 1:
+                        self.wrap_periodic_axis(p_i, d)
+                    else:
+                        if pos[d] > self.ps.domain_size[d] - self.ps.padding:
+                            collision_normal[d] += 1.0
+                            self.ps.x[p_i][d] = self.ps.domain_size[d] - self.ps.padding
+                        if pos[d] <= self.ps.padding:
+                            collision_normal[d] += -1.0
+                            self.ps.x[p_i][d] = self.ps.padding
 
                 collision_normal_length = collision_normal.norm()
                 if collision_normal_length > 1e-6:

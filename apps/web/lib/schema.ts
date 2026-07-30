@@ -18,6 +18,12 @@ export const ConfigurationSchema = z
     viscosity: z.number().default(0.01),
     surfaceTension: z.number().default(0.01),
     boundaryHandlingMethod: z.number().int().default(0),
+    // Boundary opening / periodic flow (per-axis, length = dim).
+    // periodicBoundary[d]=true opens axis d as a periodic boundary (no wall,
+    // recirculating flow, minimum-image neighbor wrap). drivingForce[d] is a
+    // constant acceleration (m/s^2) added to fluid to drive the periodic flow.
+    periodicBoundary: z.array(z.boolean()).default([false, false, false]),
+    drivingForce: Vec3.default([0, 0, 0]),
     enforceDomainFit: z.boolean().default(true),
     numberOfStepsPerRenderUpdate: z.number().int().default(1),
     totalTime: z.number().nullable().default(5),
@@ -31,6 +37,14 @@ export const ConfigurationSchema = z
   .refine(
     (c) => c.domainStart.every((a, i) => c.domainEnd[i] > a),
     { message: "domainEnd must be strictly greater than domainStart on every axis" }
+  )
+  .refine(
+    (c) => c.periodicBoundary.length === c.domainStart.length,
+    { message: "periodicBoundary must have one flag per axis" }
+  )
+  .refine(
+    (c) => c.drivingForce.length === c.domainStart.length,
+    { message: "drivingForce must have one component per axis" }
   );
 
 export const RigidBodySchema = z

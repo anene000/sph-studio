@@ -21,17 +21,14 @@ class WCSPHSolver(SPHBase):
     
 
     @ti.func
-    def compute_densities_task(self, p_i, p_j, ret: ti.template()):
-        x_i = self.ps.x[p_i]
+    def compute_densities_task(self, p_i, p_j, r: ti.template(), ret: ti.template()):
         if self.ps.material[p_j] == self.ps.material_fluid:
             # Fluid neighbors
-            x_j = self.ps.x[p_j]
-            ret += self.ps.m_V[p_j] * self.cubic_kernel((x_i - x_j).norm())
+            ret += self.ps.m_V[p_j] * self.cubic_kernel(r.norm())
         elif self.ps.material[p_j] == self.ps.material_solid:
             # Boundary neighbors
             ## Akinci2012
-            x_j = self.ps.x[p_j]
-            ret += self.ps.m_V[p_j] * self.cubic_kernel((x_i - x_j).norm())
+            ret += self.ps.m_V[p_j] * self.cubic_kernel(r.norm())
 
 
     @ti.kernel
@@ -50,25 +47,22 @@ class WCSPHSolver(SPHBase):
     
 
     @ti.func
-    def compute_pressure_forces_task(self, p_i, p_j, ret: ti.template()):
-        x_i = self.ps.x[p_i]
+    def compute_pressure_forces_task(self, p_i, p_j, r: ti.template(), ret: ti.template()):
         dpi = self.ps.pressure[p_i] / self.ps.density[p_i] ** 2
         # Fluid neighbors
         if self.ps.material[p_j] == self.ps.material_fluid:
-            x_j = self.ps.x[p_j]
             density_j = self.ps.density[p_j] * self.density_0 / self.density_0  # TODO: The density_0 of the neighbor may be different when the fluid density is different
             dpj = self.ps.pressure[p_j] / (density_j * density_j)
             # Compute the pressure force contribution, Symmetric Formula
             ret += -self.density_0 * self.ps.m_V[p_j] * (dpi + dpj) \
-                * self.cubic_kernel_derivative(x_i-x_j)
+                * self.cubic_kernel_derivative(r)
         elif self.ps.material[p_j] == self.ps.material_solid:
             # Boundary neighbors
             dpj = self.ps.pressure[p_i] / self.density_0 ** 2
             ## Akinci2012
-            x_j = self.ps.x[p_j]
             # Compute the pressure force contribution, Symmetric Formula
             f_p = -self.density_0 * self.ps.m_V[p_j] * (dpi + dpj) \
-                * self.cubic_kernel_derivative(x_i-x_j)
+                * self.cubic_kernel_derivative(r)
             ret += f_p
             if self.ps.is_dynamic_rigid_body(p_j):
                 self.ps.acceleration[p_j] += -f_p * self.density_0 / self.ps.density[p_j]
@@ -94,27 +88,21 @@ class WCSPHSolver(SPHBase):
 
 
     @ti.func
-    def compute_non_pressure_forces_task(self, p_i, p_j, ret: ti.template()):
-        x_i = self.ps.x[p_i]
-        
+    def compute_non_pressure_forces_task(self, p_i, p_j, r: ti.template(), ret: ti.template()):
         ############## Surface Tension ###############
         if self.ps.material[p_j] == self.ps.material_fluid:
             # Fluid neighbors
             diameter2 = self.ps.particle_diameter * self.ps.particle_diameter
-            x_j = self.ps.x[p_j]
-            r = x_i - x_j
             r2 = r.dot(r)
             if r2 > diameter2:
                 ret -= self.surface_tension / self.ps.m[p_i] * self.ps.m[p_j] * r * self.cubic_kernel(r.norm())
             else:
                 ret -= self.surface_tension / self.ps.m[p_i] * self.ps.m[p_j] * r * self.cubic_kernel(ti.Vector([self.ps.particle_diameter, 0.0, 0.0]).norm())
-            
-        
+
+
         ############### Viscosoty Force ###############
         d = 2 * (self.ps.dim + 2)
-        x_j = self.ps.x[p_j]
         # Compute the viscosity force contribution
-        r = x_i - x_j
         v_xy = (self.ps.v[p_i] -
                 self.ps.v[p_j]).dot(r)
         
@@ -147,6 +135,9 @@ class WCSPHSolver(SPHBase):
             self.ps.acceleration[p_i] = d_v
             if self.ps.material[p_i] == self.ps.material_fluid:
                 self.ps.for_all_neighbors(p_i, self.compute_non_pressure_forces_task, d_v)
+                # Driving body force (pressure-gradient equivalent) to maintain
+                # the flow in a periodic / fully-developed channel.
+                d_v += ti.Vector(self.drive_force)
                 self.ps.acceleration[p_i] = d_v
 
 

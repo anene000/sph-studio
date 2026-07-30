@@ -156,7 +156,7 @@ pnpm --filter web dev
 1. **S0 ホーム** — 新規計算 / ① 設定ファイル(JSON)インポート / バックエンド状態 / ジョブ一覧。
 2. **S1 シーン** — ①解析空間、②流体ブロック、③剛体を **複数** 追加・編集（3D 即時プレビュー）。
    「解析空間フィット検証」で超過時に**推奨倍率**を提示・ワンクリック適用。
-3. **S2 パラメータ** — ソルバ / 境界 / 場の物理（重力・粘性・表面張力）/ WCSPH 係数 / 計算範囲。
+3. **S2 パラメータ** — ソルバ / 境界条件（**軸ごとの周期境界 ON/OFF・駆動力**）/ 場の物理（重力・粘性・表面張力）/ WCSPH 係数 / 計算範囲。
 4. **S3 出力設定** — 時間刻み間隔、流体フィールド、オブジェクト別個追跡。
 5. **S4 実行** — レビュー → 実行で **`scene.json` が自動生成**されソルバ起動。
 6. **S5 進捗** — WebSocket で進捗バー・ETA・ライブログ・キャンセル。
@@ -178,7 +178,52 @@ python solver/run_headless.py \
 - 解析空間よりオブジェクトが大きい場合は **推奨倍率**を出力して異常終了（`enforceDomainFit`）。
 
 サンプルシーン: `sample_bunny`（流体+剛体）, `sample_dambreak`（流体のみ）,
-`sample_two_fluids`（左右2流体+剛体、複数配置の例）。
+`sample_two_fluids`（左右2流体+剛体、複数配置の例）,
+`sample_periodic_channel`（x 周期境界＋駆動力で流す周期チャネル流の例）。
+
+---
+
+## 扱える物理現象・解法・出典論文
+
+SPH Studio は **SPH（Smoothed Particle Hydrodynamics, 平滑化粒子流体力学）** に基づく
+ラグランジュ的（粒子法）な流体・剛体連成ソルバである。粒子ごとに質量・速度・密度を持ち、
+平滑化カーネルで近傍粒子から場の量とその勾配を評価して運動方程式を時間積分する。
+
+### 扱える物理現象
+
+| 現象 | 概要 | 実装の要点 |
+|------|------|-----------|
+| **自由表面流れ（free-surface flow）** | ダムブレイク・落下・飛沫など、気相を陽に解かない非圧縮性液体の流れ | WCSPH の状態方程式による弱圧縮／表面張力項 |
+| **弱圧縮・非圧縮流れ** | 密度をほぼ一定に保つ液体（水など）の挙動 | WCSPH（状態方程式）または DFSPH（発散・密度不変を反復修正） |
+| **粘性流れ** | 粘性による運動量拡散（層流・チャネル流など） | ラプラシアン近似の粘性力（`viscosity`） |
+| **表面張力** | 液滴の凝集・界面のまとまり | 粒子間凝集力（`surfaceTension`） |
+| **流体–剛体連成（一方向/双方向）** | 固定壁・動的剛体と流体の相互作用 | 境界粒子の体積補正 + 圧力/粘性の反作用 |
+| **剛体運動** | 動的剛体（`isDynamic`）の並進・回転 | 形状マッチング（shape matching）による剛体拘束 |
+| **周期境界・完全発達流** | 周期チャネル流・連続流れ（流入口=流出口） | 周期境界（位置ラップ＋minimum-image 近傍探索）＋駆動体積力 |
+| **壁境界（衝突）** | 解析空間の壁での反射・すり抜け防止 | `enforce_boundary` による衝突応答（非周期軸） |
+
+### 解法・数値スキーム
+
+- **平滑化カーネル**: 3 次スプライン（cubic spline）カーネルとその勾配（`support = 4r`）。
+- **近傍探索**: 一様格子 + カウンティングソート（周期軸は minimum-image 規約でラップ）。
+- **時間積分**: シンプレクティック・オイラー（WCSPH）／予測–修正（DFSPH）。
+- **境界開放・周期計算**: 軸ごとに壁を外して周期化（粒子数一定で循環）。周期方向へ一定の
+  **駆動体積力（圧力勾配相当）** を与えることで完全発達流（例: ポアズイユ流）を維持する。
+- **剛体**: 位置ベース（PBD）の形状マッチングで剛体拘束を満たす。
+
+### ソルバと出典論文
+
+| 要素 | ソルバ / 手法 | 出典 |
+|------|--------------|------|
+| 弱圧縮 SPH（自由表面） | **WCSPH** `simulationMethod=0` | Becker & Teschner, *Weakly compressible SPH for free surface flows*, SCA 2007. |
+| 非圧縮 SPH（発散フリー） | **DFSPH** `simulationMethod=4` | Bender & Koschier, *Divergence-Free Smoothed Particle Hydrodynamics*, SCA 2015（拡張: ACM TVCG 2017）. |
+| 流体–剛体境界の取り扱い | 境界粒子の体積補正・連成 | Akinci et al., *Versatile rigid-fluid coupling for incompressible SPH*, ACM TOG 31(4), 2012. |
+| 剛体（形状マッチング） | Shape Matching / Unified Particle Physics | Müller et al., *Meshless deformations based on shape matching*, ACM TOG 2005 ／ Macklin et al., *Unified particle physics for real-time applications*, ACM TOG 33(4), 2014. |
+| SPH 定式化・カーネル | 平滑化・3 次スプライン | Monaghan, *Smoothed particle hydrodynamics*, Annu. Rev. Astron. Astrophys. 30, 1992. |
+| 周期境界＋駆動力による流れ | body-force 駆動の周期ポアズイユ流（検証） | Morris, Fox & Zhu, *Modeling low Reynolds number incompressible flows using SPH*, J. Comput. Phys. 136, 1997. |
+
+> 本実装は [SPlisHSPlasH](https://github.com/InteractiveComputerGraphics/SPlisHSPlasH) および
+> [erizmr/SPH_Taichi](https://github.com/erizmr/SPH_Taichi) を参考にしている。
 
 ---
 
@@ -199,6 +244,8 @@ python solver/run_headless.py \
 | `viscosity` | 動粘性 | 粘性力（sph_base） |
 | `surfaceTension` | 表面張力係数 | 非圧力力（WCSPH/DFSPH） |
 | `boundaryHandlingMethod` | 境界方式（現状は衝突ベース固定・将来拡張用） | — |
+| `periodicBoundary` | 軸ごとの周期境界フラグ `[x,y,z]`（true=開放/周期, false=壁） | 境界開放・近傍探索（minimum-image） |
+| `drivingForce` | 周期流を維持する駆動加速度 `[x,y,z]` [m/s²]（圧力勾配相当） | 流体の体積力 |
 | `enforceDomainFit` | 超過時に推奨倍率を出しエラー終了 | 事前検証 |
 | `totalTime` または `totalSteps` | 総計算時間／総ステップ | ループ長 |
 

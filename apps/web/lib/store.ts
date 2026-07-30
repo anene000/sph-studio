@@ -18,6 +18,8 @@ export const defaultScene: Scene = {
     viscosity: 0.01,
     surfaceTension: 0.01,
     boundaryHandlingMethod: 0,
+    periodicBoundary: [false, false, false],
+    drivingForce: [0, 0, 0],
     enforceDomainFit: true,
     numberOfStepsPerRenderUpdate: 1,
     totalTime: 0.5,

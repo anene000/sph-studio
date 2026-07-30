@@ -64,6 +64,37 @@ class ParticleSystem:
         print("grid size: ", self.grid_num)
         self.padding = self.grid_size
 
+        # ========== Periodic boundary condition ==========
+        # "periodicBoundary": per-axis flag (list of length dim). When an axis is
+        # periodic, the wall collision on that axis is disabled, particle positions
+        # are wrapped across the domain, and the neighbor search wraps with the
+        # minimum-image convention so the flow field stays continuous across the
+        # seam. Fluid recirculates with a fixed particle count (no emission/removal).
+        periodic_cfg = self.cfg.get_cfg("periodicBoundary")
+        if periodic_cfg is None:
+            periodic_cfg = [False] * self.dim
+        assert len(periodic_cfg) == self.dim, \
+            f"periodicBoundary must have length {self.dim} (one flag per axis), got {periodic_cfg}"
+        self.periodic = [1 if bool(p) else 0 for p in periodic_cfg]
+        # A periodic axis needs at least 3 grid cells, otherwise the (-1, 0, +1)
+        # neighbor stencil would wrap onto the same cell and double-count neighbors.
+        for d in range(self.dim):
+            if self.periodic[d] and self.grid_num[d] < 3:
+                sys.exit(
+                    f"\n[ERROR] periodicBoundary is enabled on axis {d}, but the domain "
+                    f"spans only {self.grid_num[d]} grid cell(s) there. A periodic axis "
+                    f"requires at least 3 cells (domain size >= 3 * supportRadius = "
+                    f"{3 * self.support_radius}). Enlarge the domain or reduce particleRadius.\n"
+                )
+        self.periodic_ti = ti.Vector.field(self.dim, dtype=ti.i32, shape=())
+        self.periodic_ti[None] = ti.Vector(self.periodic)
+        self.any_periodic = any(self.periodic)
+        # Domain size as a runtime Taichi vector (used for position wrapping and
+        # the minimum-image displacement in the neighbor search).
+        self.domain_size_ti = ti.Vector.field(self.dim, dtype=ti.f32, shape=())
+        self.domain_size_ti[None] = ti.Vector(list(self.domain_size.astype(np.float32)))
+        print("periodic boundary: ", self.periodic)
+
         # All objects id and its particle num
         self.object_collection = dict()
         self.object_id_rigid_body = set()
@@ -495,24 +526,43 @@ class ParticleSystem:
     @ti.func
     def for_all_neighbors(self, p_i: int, task: ti.template(), ret: ti.template()):
         center_cell = self.pos_to_index(self.x[p_i])
-    
+
         for offset in ti.grouped(ti.ndrange(*((-1, 2),) * self.dim)):
             cell = center_cell + offset
-    
-            # 3D前提の範囲チェック（超重要）
-            if 0 <= cell[0] < self.grid_num[0] and 0 <= cell[1] < self.grid_num[1] and 0 <= cell[2] < self.grid_num[2]:
+
+            # Per-axis range check. On a periodic axis the cell index is wrapped
+            # around the domain and the neighbor is treated at its periodic image
+            # (minimum-image convention) via `shift`; on a wall axis, out-of-range
+            # cells are simply skipped as before.
+            shift = ti.Vector([0.0 for _ in range(self.dim)])
+            valid = True
+            for d in ti.static(range(self.dim)):
+                if self.periodic_ti[None][d] == 1:
+                    if cell[d] < 0:
+                        cell[d] += self.grid_num[d]
+                        shift[d] = -self.domain_size_ti[None][d]
+                    elif cell[d] >= self.grid_num[d]:
+                        cell[d] -= self.grid_num[d]
+                        shift[d] = self.domain_size_ti[None][d]
+                else:
+                    if cell[d] < 0 or cell[d] >= self.grid_num[d]:
+                        valid = False
+
+            if valid:
                 grid_index = self.flatten_grid_index(cell)
-    
+
                 start = 0
                 if grid_index - 1 >= 0:
                     start = self.grid_particles_num[grid_index - 1]
                 end = self.grid_particles_num[grid_index]
-    
+
                 for p_j in range(start, end):
                     if p_i != p_j:
-                        r = self.x[p_i] - self.x[p_j]
+                        # Minimum-image displacement: the neighbor's periodic image
+                        # position is x[p_j] + shift (shift is 0 on non-periodic axes).
+                        r = self.x[p_i] - (self.x[p_j] + shift)
                         if r.dot(r) < self.support_radius * self.support_radius:
-                            task(p_i, p_j, ret)
+                            task(p_i, p_j, r, ret)
 
     @ti.kernel
     def copy_to_numpy(self, np_arr: ti.types.ndarray(), src_arr: ti.template()):
