@@ -21,6 +21,19 @@ SOLVER_ENTRY = REPO_ROOT / "solver" / "run_headless.py"
 OUTPUTS_ROOT = REPO_ROOT / "outputs"
 
 
+def solver_command(scene_file: str, output_dir: str) -> list[str]:
+    """Build the headless-solver command for the current runtime.
+
+    - Frozen (PyInstaller sidecar): re-invoke ourselves in solver mode, since a frozen
+      exe cannot run `python run_headless.py`.
+    - Dev: run the solver script with the current interpreter.
+    """
+    args = ["--scene_file", scene_file, "--output_dir", output_dir]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--run-solver", *args]
+    return [sys.executable, str(SOLVER_ENTRY), *args]
+
+
 @dataclass
 class Job:
     id: str
@@ -99,9 +112,7 @@ class JobManager:
         return True
 
     def _run(self, job: Job) -> None:
-        cmd = [sys.executable, str(SOLVER_ENTRY),
-               "--scene_file", job.config_path,
-               "--output_dir", job.output_dir]
+        cmd = solver_command(job.config_path, job.output_dir)
         env = dict(os.environ)
         # The solver writes JSONL to stdout and human logs / tracebacks to stderr.
         # Keep the two apart: parse stdout as events, tee stderr to a per-job file.

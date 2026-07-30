@@ -1,6 +1,8 @@
 /node_modules/
 /src-tauri/target/
 /src-tauri/gen/
+# PyInstaller sidecar binaries are built per-OS in CI (U19/U20), not committed.
+/src-tauri/binaries/
 
 # `tauri icon` also emits mobile/store variants we don't build for; keep only the
 # desktop icons referenced by tauri.conf.json (png set + .ico/.icns).

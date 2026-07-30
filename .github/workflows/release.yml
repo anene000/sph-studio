@@ -1,0 +1,69 @@
+name: Release (desktop)
+
+# U20: build the Tauri desktop app with the bundled Python (PyInstaller) sidecar for
+# each OS and attach installers to a GitHub Release. Tag-triggered only so it never
+# runs on normal pushes (keeping the fast ci.yml green and avoiding heavy CI minutes).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux WebView deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python deps
+        run: pip install -r backend/requirements.txt -r solver/requirements.txt pyinstaller
+
+      - name: Build backend sidecar (PyInstaller) — unix
+        if: matrix.os != 'windows-latest'
+        run: bash scripts/build_sidecar.sh
+
+      - name: Build backend sidecar (PyInstaller) — windows
+        if: matrix.os == 'windows-latest'
+        run: pwsh scripts/build_sidecar.ps1
+
+      - name: Enable sidecar bundling (externalBin)
+        shell: python
+        run: |
+          import json, pathlib
+          p = pathlib.Path("apps/desktop/src-tauri/tauri.conf.json")
+          c = json.loads(p.read_text(encoding="utf-8"))
+          c["bundle"]["externalBin"] = ["binaries/sph-backend"]
+          p.write_text(json.dumps(c, indent=2), encoding="utf-8")
+
+      - name: Build desktop app + create release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "SPH Studio ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false

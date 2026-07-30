@@ -9,6 +9,10 @@ dist/
 # ---- Python ----
 __pycache__/
 *.py[cod]
+# PyInstaller sidecar build artifacts (U19)
+/build/
+/dist/
+*.spec.bak
 .venv/
 venv/
 .env

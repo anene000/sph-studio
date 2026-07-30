@@ -45,8 +45,29 @@ apps/desktop/
    └─ icons/                    # `tauri icon` で生成（未コミット）
 ```
 
-## 次の作業（U19 / U20）
+## サイドカー（U19: Python バックエンド同梱）
 
-- **U19**: `tauri-plugin-shell` で Python(FastAPI) を PyInstaller 化した `sph-backend`
-  をサイドカー起動・終了管理（`bundle.externalBin` + `src/lib.rs` の setup）。
-- **U20**: OS 別ビルドを CI マトリクスで生成し、Release に添付。
+バックエンドは PyInstaller で 1 バイナリ `sph-backend` 化し、Tauri サイドカーとして
+起動・終了する（`src/lib.rs` の `tauri-plugin-shell` + `setup`/`ExitRequested`）。
+`sph-backend` はサーバ／ソルバの 2 モードを持つ統一エントリ（`backend/run_server.py`、
+frozen 時は `--run-solver` で自己再呼び出し）。サイドカー未バンドル時は外部起動した
+バックエンドにフォールバックするため、開発時はそのまま動く。
+
+フル同梱ビルド:
+```bash
+# 1) サイドカー生成（OS 別）
+bash scripts/build_sidecar.sh          # Windows: pwsh scripts/build_sidecar.ps1
+# → apps/desktop/src-tauri/binaries/sph-backend-<target-triple>[.exe]
+# 2) tauri.conf.json の bundle に "externalBin": ["binaries/sph-backend"] を追加
+# 3) ビルド
+pnpm --dir apps/desktop tauri build
+```
+
+## 配布（U20: OS 別 Release CI）
+
+`.github/workflows/release.yml`（`v*` タグ / 手動トリガ）が ubuntu/windows/macos で
+サイドカー生成 → `externalBin` 有効化 → `tauri build` を実行し、`tauri-action` で
+Release（下書き）に成果物を添付する。通常 push では走らない（`ci.yml` の緑を維持）。
+
+> Taichi の PyInstaller 同梱は環境依存が大きく、各 OS での初回は spec の hidden import /
+> データ収集の調整が必要になり得る（`backend/sph-backend.spec`）。
