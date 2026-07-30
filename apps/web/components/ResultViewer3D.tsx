@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -51,6 +51,12 @@ export default function ResultViewer3D({
   );
 
   const cam: [number, number, number] = [center[0] + diag, center[1] + diag * 0.8, center[2] + diag * 1.3];
+
+  // Nudge a resize after mount so the Canvas fills its panel on client navigation.
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <Canvas camera={{ position: cam, fov: 45, near: 0.01, far: diag * 50 }}>

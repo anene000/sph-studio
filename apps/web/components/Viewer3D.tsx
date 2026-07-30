@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { OrbitControls, Edges, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -84,6 +84,13 @@ export default function Viewer3D({ scene }: { scene: Scene }) {
   const sz = size(scene.Configuration.domainStart, scene.Configuration.domainEnd);
   const diag = Math.max(0.5, Math.hypot(sz[0], sz[1], sz[2]));
   const camPos: [number, number, number] = [c[0] + diag * 1.1, c[1] + diag * 0.9, c[2] + diag * 1.4];
+
+  // On client-side navigation the r3f Canvas can mount before its container is measured
+  // and stick at the default 300x150. Nudge a resize after mount so it fills the panel.
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <Canvas camera={{ position: camPos, fov: 45, near: 0.01, far: diag * 50 }}>
