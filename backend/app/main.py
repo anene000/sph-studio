@@ -29,7 +29,14 @@ app = FastAPI(title="SPH Studio Backend", version="0.0.1")
 # Local single-user desktop app: allow the Next.js dev origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "tauri://localhost"],
+    # Dev servers plus the Tauri WebView origin, which differs by OS:
+    #   Windows (WebView2): http://tauri.localhost (or https://)
+    #   macOS/Linux:        tauri://localhost
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=(
+        r"^(tauri://localhost|https?://tauri\.localhost|"
+        r"https?://(localhost|127\.0\.0\.1)(:\d+)?)$"
+    ),
     allow_methods=["*"],
     allow_headers=["*"],
 )
