@@ -61,6 +61,8 @@ export const api = {
   cancelJob: (id: string) =>
     fetch(`${BASE}/api/jobs/${id}/cancel`, { method: "POST" }).then((r) => json<any>(r)),
 
+  jobScene: (id: string) => fetch(`${BASE}/api/jobs/${id}/scene`).then((r) => json<any>(r)),
+
   frames: (id: string) => fetch(`${BASE}/api/jobs/${id}/frames`).then((r) => json<any>(r)),
 
   frame: (id: string, n: number) =>

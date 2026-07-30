@@ -202,6 +202,19 @@ async def jobs_ws(websocket: WebSocket, job_id: str):
 
 
 # ---------- results ----------
+@app.get("/api/jobs/{job_id}/scene")
+def jobs_scene(job_id: str):
+    """The auto-generated scene.json for a job (used by the result viewer to draw the
+    fixed analysis-space grid/box)."""
+    job = manager.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    p = Path(job.output_dir) / "scene.json"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="scene.json not found")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 @app.get("/api/jobs/{job_id}/frames")
 def jobs_frames(job_id: str):
     job = manager.get(job_id)

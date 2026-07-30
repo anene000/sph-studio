@@ -6,6 +6,7 @@ import { useState } from "react";
 import StepNav from "@/components/StepNav";
 import { ui } from "@/components/fields";
 import { api } from "@/lib/api";
+import { estimateScene, feasibilityColor, fmt } from "@/lib/estimate";
 import { useSceneStore } from "@/lib/store";
 
 // U12: S4 review & launch. Creating the job auto-writes scene.json server-side.
@@ -16,8 +17,16 @@ export default function RunPage() {
   const [error, setError] = useState<string | null>(null);
   const c = scene.Configuration;
   const steps = c.totalSteps ?? Math.round((c.totalTime ?? 0) / c.timeStepSize);
+  const est = estimateScene(scene);
 
   async function run() {
+    if (est.level === "danger" &&
+        !window.confirm(
+          `推定 流体粒子数 ${fmt(est.fluidParticles)} は非常に多く、GPU がクラッシュする恐れがあります。\n` +
+          `このまま実行しますか？（S2 で particleRadius を大きくすると安全です）`
+        )) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -41,6 +50,9 @@ export default function RunPage() {
           <div style={row}>particleRadius: {c.particleRadius} / dt: {c.timeStepSize}</div>
           <div style={row}>totalTime: {c.totalTime}s（約 {steps} ステップ）</div>
           <div style={row}>剛体: {scene.RigidBodies.length} 個 / 流体ブロック: {scene.FluidBlocks.length} 個</div>
+          <div style={{ ...row, color: feasibilityColor(est.level) }}>
+            推定 流体粒子数: {fmt(est.fluidParticles)}（格子 {fmt(est.gridCells)}）— {est.message}
+          </div>
           <div style={row}>
             出力間隔: {scene.Export.interval.value} {scene.Export.interval.mode}
             ／流体: {scene.Export.fluid.enabled ? scene.Export.fluid.fields.join("+") : "off"}

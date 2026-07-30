@@ -157,9 +157,17 @@ export default function ScenePage() {
             </div>
           ))}
 
-          <button onClick={validate} disabled={busy} style={{ ...ui.button, width: "100%", marginTop: 14 }}>
+          <button
+            onClick={validate}
+            disabled={busy}
+            title="配置した剛体が解析空間（① の枠）に収まるか判定し、はみ出す場合は収まる推奨倍率(scale)を提示します。"
+            style={{ ...ui.button, width: "100%", marginTop: 14 }}
+          >
             {busy ? "検証中…" : "解析空間フィット検証"}
           </button>
+          <p style={{ fontSize: 11, opacity: 0.6, margin: "6px 2px 0" }}>
+            剛体が解析空間に収まるか検証します。はみ出す場合は、収まる推奨倍率(scale)を提示し、右のパネルからワンクリックで適用できます。
+          </p>
         </aside>
 
         {/* Center: 3D preview */}

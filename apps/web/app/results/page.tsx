@@ -21,10 +21,15 @@ function Results() {
   const [frames, setFrames] = useState<FrameMeta[]>([]);
   const [idx, setIdx] = useState(0);
   const [points, setPoints] = useState<FramePoints>({ fluid: [], objects: {} });
+  const [domain, setDomain] = useState<{ start: number[]; end: number[] } | undefined>();
 
   useEffect(() => {
     if (!id) return;
-    api.frames(id).then((d) => setFrames(d.frames || []));
+    api.frames(id).then((d) => setFrames(d.frames || [])).catch(() => {});
+    api
+      .jobScene(id)
+      .then((s) => setDomain({ start: s.Configuration.domainStart, end: s.Configuration.domainEnd }))
+      .catch(() => {});
   }, [id]);
 
   useEffect(() => {
@@ -48,9 +53,9 @@ function Results() {
       </header>
 
       <section style={{ position: "relative" }}>
-        <ResultViewer3D fluid={points.fluid} objects={points.objects} />
+        <ResultViewer3D fluid={points.fluid} objects={points.objects} domain={domain} />
         <div style={{ position: "absolute", top: 10, left: 12, fontSize: 12, opacity: 0.7 }}>
-          青=流体パーティクル / 白=オブジェクト
+          橙=解析空間グリッド（固定） / 青=流体パーティクル / 白=オブジェクト
         </div>
       </section>
 
