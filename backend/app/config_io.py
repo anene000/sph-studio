@@ -10,8 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from .models import Scene
+from .paths import APP_ROOT as REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 SAFETY = 0.98
 
 

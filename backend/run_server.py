@@ -17,8 +17,10 @@ from pathlib import Path
 
 def _solver_search_paths() -> list[str]:
     if getattr(sys, "frozen", False):
+        # Solver .py files are shipped as source under _MEIPASS/solver (see the spec),
+        # so Taichi can read the kernel source at runtime.
         base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-        return [str(base), str(base / "solver")]
+        return [str(base / "solver")]
     return [str(Path(__file__).resolve().parents[1] / "solver")]
 
 

@@ -24,10 +24,16 @@ for pkg in ("taichi", "trimesh", "networkx", "scipy"):
         pass
 
 hiddenimports += collect_submodules("uvicorn")
-hiddenimports += [
-    "app.main", "app.jobs", "app.config_io", "app.results", "app.models",
-    "run_headless", "particle_system", "WCSPH", "DFSPH", "sph_base",
-    "config_builder", "scan_single_buffer",
+hiddenimports += ["app.main", "app.jobs", "app.config_io", "app.results", "app.models", "app.paths"]
+
+# Ship the solver + Taichi-kernel modules as SOURCE, not frozen bytecode: Taichi
+# inspects the kernel source (inspect.getsource) at runtime, which a frozen .pyc lacks
+# ("kernels parameters must be type annotated"). run_server adds _MEIPASS/solver to
+# sys.path so they import from these .py files. They are therefore NOT in hiddenimports.
+datas += [
+    (os.path.join(SOLVER, f), "solver")
+    for f in os.listdir(SOLVER)
+    if f.endswith(".py")
 ]
 
 a = Analysis(

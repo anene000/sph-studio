@@ -13,12 +13,10 @@ import sys
 import threading
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SOLVER_ENTRY = REPO_ROOT / "solver" / "run_headless.py"
-OUTPUTS_ROOT = REPO_ROOT / "outputs"
+from .paths import APP_ROOT as REPO_ROOT
+from .paths import OUTPUTS_ROOT, SOLVER_ENTRY
 
 
 def solver_command(scene_file: str, output_dir: str) -> list[str]:
