@@ -3,31 +3,43 @@
 // U18: opens a WebView serving the statically-exported Next.js frontend (apps/web/out),
 //      or http://localhost:3000 in dev.
 // U19: launches the PyInstaller-built FastAPI backend as a sidecar ("sph-backend") and
-//      terminates it on exit. The sidecar is only present in a fully bundled build
-//      (after scripts/build_sidecar + adding bundle.externalBin); when it is absent
-//      (dev, or a build without the sidecar) we fall back to an externally started
-//      backend so the app still runs.
-use std::sync::Mutex;
+//      terminates it on exit. Because a PyInstaller onefile spawns a child process, a
+//      forced/crashed close can orphan the sidecar and leave it holding port 8000,
+//      which then blocks the next launch. To be robust we (1) kill any stale sidecar on
+//      startup and (2) kill the whole sph-backend tree on exit (not just the tracked
+//      child). When the sidecar is not bundled (dev) we fall back to an external backend.
+use std::process::Command;
 
-use tauri::{Manager, RunEvent};
-use tauri_plugin_shell::process::CommandChild;
+use tauri::RunEvent;
 use tauri_plugin_shell::ShellExt;
 
-#[derive(Default)]
-struct Sidecar(Mutex<Option<CommandChild>>);
+#[cfg(target_os = "windows")]
+fn kill_stale_sidecars() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let _ = Command::new("taskkill")
+        .args(["/IM", "sph-backend.exe", "/F", "/T"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn kill_stale_sidecars() {
+    let _ = Command::new("pkill").args(["-f", "sph-backend"]).status();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Clear any sidecar left behind by a previous crashed/force-closed session so the
+    // fresh one can bind the port.
+    kill_stale_sidecars();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .manage(Sidecar::default())
         .setup(|app| {
             match app.shell().sidecar("sph-backend") {
                 Ok(cmd) => match cmd.spawn() {
-                    Ok((_rx, child)) => {
-                        *app.state::<Sidecar>().0.lock().unwrap() = Some(child);
-                        println!("[sph-studio] backend sidecar started");
-                    }
+                    Ok((_rx, _child)) => println!("[sph-studio] backend sidecar started"),
                     Err(e) => eprintln!("[sph-studio] failed to spawn sidecar: {e}"),
                 },
                 Err(e) => eprintln!(
@@ -39,11 +51,9 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
+        .run(|_app, event| {
             if let RunEvent::ExitRequested { .. } = event {
-                if let Some(child) = app.state::<Sidecar>().0.lock().unwrap().take() {
-                    let _ = child.kill();
-                }
+                kill_stale_sidecars();
             }
         });
 }
