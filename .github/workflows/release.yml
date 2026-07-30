@@ -10,6 +10,8 @@ on:
 
 jobs:
   desktop:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -57,13 +59,19 @@ jobs:
           c["bundle"]["externalBin"] = ["binaries/sph-backend"]
           p.write_text(json.dumps(c, indent=2), encoding="utf-8")
 
-      - name: Build desktop app + create release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # apps/desktop is not a pnpm workspace member, so install its @tauri-apps/cli
+      # standalone (mirrors the local build) — otherwise `tauri` isn't on PATH.
+      - name: Install desktop CLI (@tauri-apps/cli)
+        run: npm install --prefix apps/desktop
+
+      - name: Build desktop app (tauri build)
+        run: npm --prefix apps/desktop run tauri build
+
+      - name: Upload installers to draft release
+        uses: softprops/action-gh-release@v2
         with:
-          projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "SPH Studio ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: false
+          draft: true
+          tag_name: ${{ github.ref_name }}
+          name: "SPH Studio ${{ github.ref_name }}"
+          files: |
+            apps/desktop/src-tauri/target/release/bundle/**/*
