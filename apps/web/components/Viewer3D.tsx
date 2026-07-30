@@ -5,6 +5,7 @@ import { Canvas, useLoader } from "@react-three/fiber";
 import { OrbitControls, Edges, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import * as THREE from "three";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { api } from "@/lib/api";
 import type { Scene, RigidBody, Block } from "@/lib/schema";
 
@@ -97,11 +98,15 @@ export default function Viewer3D({ scene }: { scene: Scene }) {
       {scene.FluidBlocks.map((b, i) => (
         <FluidBox key={`f${i}`} block={b} />
       ))}
-      <Suspense fallback={null}>
-        {scene.RigidBodies.map((rb, i) => (
-          <RigidMesh key={`r${i}-${rb.geometryFile}`} rb={rb} />
-        ))}
-      </Suspense>
+      {scene.RigidBodies.map((rb, i) => (
+        // Per-mesh boundary: a missing/failed .obj (e.g. 404) shows nothing instead of
+        // throwing out of the Canvas and crashing the app. Suspense handles the pending load.
+        <ErrorBoundary key={`r${i}-${rb.geometryFile}`} fallback={null}>
+          <Suspense fallback={null}>
+            <RigidMesh rb={rb} />
+          </Suspense>
+        </ErrorBoundary>
+      ))}
 
       <OrbitControls target={c} makeDefault />
       <GizmoHelper alignment="bottom-right" margin={[60, 60]}>

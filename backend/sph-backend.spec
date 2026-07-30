@@ -36,6 +36,17 @@ datas += [
     if f.endswith(".py")
 ]
 
+# Bundle sample models/scenes so the packaged app has a working default scene; they are
+# seeded next to the exe on first run (app.paths.seed_bundled_data).
+_MODELS = os.path.join(ROOT, "data", "models")
+_SCENES = os.path.join(ROOT, "data", "scenes")
+if os.path.isdir(_MODELS):
+    datas += [(os.path.join(_MODELS, f), "data/models")
+              for f in os.listdir(_MODELS) if f.endswith(".obj")]
+if os.path.isdir(_SCENES):
+    datas += [(os.path.join(_SCENES, f), "data/scenes")
+              for f in os.listdir(_SCENES) if f.endswith(".json")]
+
 a = Analysis(
     [os.path.join(BACKEND, "run_server.py")],
     pathex=[BACKEND, SOLVER],

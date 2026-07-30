@@ -47,6 +47,15 @@ def _run_server() -> None:
 
 
 def main() -> None:
+    # Seed bundled sample models/scenes next to the exe (frozen only, first run).
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from app.paths import seed_bundled_data
+
+        seed_bundled_data()
+    except Exception:
+        pass
+
     if "--run-solver" in sys.argv:
         _run_solver()
     else:
