@@ -25,6 +25,32 @@ v 0 1 1
 f 4 5 6
 """
 
+# A box that is tall along Z (Blender "up") and short along Y, so the Z-up->Y-up
+# conversion is observable: after conversion the tall extent must move to Y.
+_TALL_Z_OBJ = """\
+o box
+v 0 0 0
+v 0.1 0 0
+v 0.1 0.2 0
+v 0 0.2 0
+v 0 0 0.9
+v 0.1 0 0.9
+v 0.1 0.2 0.9
+v 0 0.2 0.9
+f 1 2 3
+f 1 3 4
+f 5 6 7
+f 5 7 8
+f 1 2 6
+f 1 6 5
+f 4 3 7
+f 4 7 8
+f 1 4 8
+f 1 8 5
+f 2 3 7
+f 2 7 6
+"""
+
 
 def test_sample_scene_parses():
     data = json.loads(SAMPLE.read_text(encoding="utf-8"))
@@ -175,3 +201,31 @@ def test_multi_object_obj_bounds_are_resolved(tmp_path):
     msgs = [i["message"] for i in result["issues"]]
     assert not any("mesh bounds unavailable" in m for m in msgs), msgs
     assert result["ok"] is True
+
+
+def test_rigidbody_upaxis_default_and_validation():
+    from app.models import RigidBody
+    assert RigidBody(objectId=1, geometryFile="x.obj").upAxis == "y"
+    assert RigidBody(objectId=1, geometryFile="x.obj", upAxis="z").upAxis == "z"
+    try:
+        RigidBody(objectId=1, geometryFile="x.obj", upAxis="w")
+        assert False, "expected validation error for invalid upAxis"
+    except Exception:
+        pass
+
+
+def test_upaxis_z_converts_blender_zup_to_yup(tmp_path):
+    """upAxis='z' must move the tall (Blender-up=Z) extent onto the solver's Y axis."""
+    pytest.importorskip("trimesh", reason="trimesh not installed")
+    obj = tmp_path / "box.obj"
+    obj.write_text(_TALL_Z_OBJ, encoding="utf-8")
+
+    lo_y, hi_y = config_io._mesh_bounds(str(obj), [1, 1, 1], [0, 0, 0], "y")
+    ext_y = [hi_y[k] - lo_y[k] for k in range(3)]
+    # untouched: tall in Z (~0.9), short in Y (~0.2)
+    assert abs(ext_y[2] - 0.9) < 1e-3 and abs(ext_y[1] - 0.2) < 1e-3, ext_y
+
+    lo_z, hi_z = config_io._mesh_bounds(str(obj), [1, 1, 1], [0, 0, 0], "z")
+    ext_z = [hi_z[k] - lo_z[k] for k in range(3)]
+    # converted: tall now in Y (~0.9), Z becomes short (~0.2)
+    assert abs(ext_z[1] - 0.9) < 1e-3 and abs(ext_z[2] - 0.2) < 1e-3, ext_z

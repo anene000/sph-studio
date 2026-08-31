@@ -99,6 +99,9 @@ class RigidBody(BaseModel):
     scale: Vec3 = Field(default_factory=lambda: [1.0, 1.0, 1.0])
     rotationAxis: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotationAngle: float = 0.0
+    # Source up-axis of the mesh. "z" converts a Blender Z-up export to the
+    # solver's Y-up (rotate -90deg about X) on load; "y" (default) leaves it as-is.
+    upAxis: Literal["y", "z"] = "y"
     velocity: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     density: float = 1000.0
     color: List[int] = Field(default_factory=lambda: [255, 255, 255])

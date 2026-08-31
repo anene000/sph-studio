@@ -145,6 +145,17 @@ export default function ScenePage() {
               <Field label="rotate °">
                 <input type="number" step={5} value={rb.rotationAngle} onChange={(e) => updateRigidBody(i, { rotationAngle: parseFloat(e.target.value) })} style={{ ...ui.input, width: 70 }} />
               </Field>
+              <Field label="元データの上軸 upAxis">
+                <select
+                  value={rb.upAxis ?? "y"}
+                  onChange={(e) => updateRigidBody(i, { upAxis: e.target.value as "y" | "z" })}
+                  style={{ ...ui.input, width: 150 }}
+                >
+                  <option value="y">Y-up（そのまま）</option>
+                  <option value="z">Z-up（Blender→Y-upへ変換）</option>
+                </select>
+                <span style={{ fontSize: 11, opacity: 0.6 }}>Blender出力は Z-up を選択</span>
+              </Field>
               <Field label="初速 velocity"><Vec3Edit value={rb.velocity} step={0.5} onChange={(a, v) => mutate((s) => (s.RigidBodies[i].velocity[a] = v))} /></Field>
               <Field label="density">
                 <input type="number" step={1} value={rb.density} onChange={(e) => updateRigidBody(i, { density: parseFloat(e.target.value) })} style={{ ...ui.input, width: 90 }} />

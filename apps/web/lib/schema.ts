@@ -78,6 +78,8 @@ export const RigidBodySchema = z
     scale: Vec3.default([1, 1, 1]),
     rotationAxis: Vec3.default([0, 0, 0]),
     rotationAngle: z.number().default(0),
+    // "z" converts a Blender Z-up mesh to the solver's Y-up on load.
+    upAxis: z.enum(["y", "z"]).default("y"),
     velocity: Vec3.default([0, 0, 0]),
     density: z.number().default(1000),
     color: z.array(z.number().int()).default([255, 255, 255]),

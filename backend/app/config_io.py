@@ -24,8 +24,9 @@ def scene_to_dict(scene: Scene) -> dict:
     return scene.model_dump(mode="json", exclude_none=True)
 
 
-def _mesh_bounds(geometry_file: str, scale, translation):
-    """Return (world_min, world_max) after scale+translation, or None if unavailable."""
+def _mesh_bounds(geometry_file: str, scale, translation, up_axis: str = "y"):
+    """Return (world_min, world_max) after scale (+ optional Z-up→Y-up) + translation,
+    or None if unavailable."""
     try:
         import numpy as np
         import trimesh as tm
@@ -43,7 +44,14 @@ def _mesh_bounds(geometry_file: str, scale, translation):
         # in particle_system.load_rigid_body so validation matches the solver).
         mesh = tm.load(str(path), force="mesh")
         mesh.apply_scale(scale)
-        verts = np.asarray(mesh.vertices) + np.asarray(translation)
+        verts = np.asarray(mesh.vertices)
+        if str(up_axis).lower() == "z":
+            # Blender Z-up -> solver Y-up: rotate -90deg about X (+Z -> +Y) about
+            # the centroid, matching particle_system.load_rigid_body.
+            c = verts.mean(axis=0)
+            v = verts - c
+            verts = np.column_stack([v[:, 0], v[:, 2], -v[:, 1]]) + c
+        verts = verts + np.asarray(translation)
         return verts.min(axis=0), verts.max(axis=0)
     except Exception:
         return None
@@ -60,7 +68,7 @@ def validate_scene(scene: Scene) -> dict:
 
     issues = []
     for rb in scene.RigidBodies:
-        bounds = _mesh_bounds(rb.geometryFile, rb.scale, rb.translation)
+        bounds = _mesh_bounds(rb.geometryFile, rb.scale, rb.translation, getattr(rb, "upAxis", "y"))
         if bounds is None:
             issues.append({
                 "objectId": rb.objectId, "level": "info",

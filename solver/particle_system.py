@@ -769,6 +769,21 @@ class ParticleSystem:
                 f"（指定値: {rigid_body['scale']}）。\n"
             )
         mesh.apply_scale(rigid_body["scale"])
+
+        # --- 軸系の補正（Blender Z-up → ソルバ Y-up）---
+        # 本ソルバは重力 -Y の Y-up 系。Blender 既定の Z-up メッシュは "upAxis":"z"
+        # を指定すると、元の Blender 軸を無視して X 軸まわり -90°回転（+Z→+Y）し
+        # ソルバ軸へ合わせる。既定 "y" は無変換（後方互換）。
+        up_axis = str(rigid_body.get("upAxis", "y")).lower()
+        if up_axis == "z":
+            zup = tm.transformations.rotation_matrix(
+                -np.pi / 2.0, [1.0, 0.0, 0.0], mesh.vertices.mean(axis=0)
+            )
+            mesh.apply_transform(zup)
+            print(f"[INFO] RigidBody ID={obj_id}: Blender Z-up を ソルバ Y-up へ変換 (upAxis=z)。")
+        elif up_axis != "y":
+            print(f"[WARN] RigidBody ID={obj_id}: unknown upAxis '{up_axis}' (expected 'y'/'z'); treated as 'y'.")
+
         offset = np.array(rigid_body["translation"])
 
         # 回転処理（安全に行う）
