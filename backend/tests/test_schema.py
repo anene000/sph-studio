@@ -2,11 +2,28 @@
 import json
 from pathlib import Path
 
+import pytest
 from app import config_io
 from app.models import Scene
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = REPO_ROOT / "data" / "scenes" / "sample_bunny.json"
+
+# A multi-object / multi-material OBJ (two `o` groups) — how Blender exports a
+# scene with several objects. trimesh loads this as a Scene (no `.vertices`), so
+# mesh-bounds must use force="mesh" to concatenate it into a single Trimesh.
+_MULTI_OBJECT_OBJ = """\
+o A
+v 0 0 0
+v 1 0 0
+v 0 1 0
+f 1 2 3
+o B
+v 0 0 1
+v 1 0 1
+v 0 1 1
+f 4 5 6
+"""
 
 
 def test_sample_scene_parses():
@@ -137,3 +154,24 @@ def test_inlet_axis_out_of_range_rejected():
         assert False, "expected validation error for out-of-range inletAxis"
     except Exception:
         pass
+
+
+def test_multi_object_obj_bounds_are_resolved(tmp_path):
+    """A Blender-style multi-object OBJ (trimesh loads it as a Scene) must still
+    yield mesh bounds — regression for the 'mesh bounds unavailable' message."""
+    pytest.importorskip("trimesh", reason="trimesh not installed")
+    obj = tmp_path / "multi.obj"
+    obj.write_text(_MULTI_OBJECT_OBJ, encoding="utf-8")
+    scene = config_io.parse_scene({
+        "Configuration": {"domainStart": [0, 0, 0], "domainEnd": [5, 5, 5]},
+        "RigidBodies": [{
+            "objectId": 2, "geometryFile": str(obj),
+            "scale": [1, 1, 1], "translation": [0, 0, 0],
+        }],
+    })
+    result = config_io.validate_scene(scene)
+    # Bounds resolved -> no 'mesh bounds unavailable' info issue, and the object
+    # fits the large domain -> no error/warn issues at all.
+    msgs = [i["message"] for i in result["issues"]]
+    assert not any("mesh bounds unavailable" in m for m in msgs), msgs
+    assert result["ok"] is True

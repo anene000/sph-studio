@@ -37,7 +37,11 @@ def _mesh_bounds(geometry_file: str, scale, translation):
     if not path.exists():
         return None
     try:
-        mesh = tm.load(str(path))
+        # force="mesh" merges multi-object / multi-material OBJs (e.g. Blender
+        # exports) into a single Trimesh; otherwise trimesh returns a Scene, which
+        # has no `.vertices` and the bounds check silently fails (mirrors the fix
+        # in particle_system.load_rigid_body so validation matches the solver).
+        mesh = tm.load(str(path), force="mesh")
         mesh.apply_scale(scale)
         verts = np.asarray(mesh.vertices) + np.asarray(translation)
         return verts.min(axis=0), verts.max(axis=0)

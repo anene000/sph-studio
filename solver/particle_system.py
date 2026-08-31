@@ -756,7 +756,10 @@ class ParticleSystem:
 
     def load_rigid_body(self, rigid_body):
         obj_id = rigid_body["objectId"]
-        mesh = tm.load(rigid_body["geometryFile"])
+        # force="mesh" concatenates multi-object / multi-material OBJs (e.g. Blender
+        # exports with several `o`/`usemtl` groups) into a single Trimesh. Without it
+        # trimesh returns a Scene, which has no `.vertices` and breaks voxelization.
+        mesh = tm.load(rigid_body["geometryFile"], force="mesh")
 
         # --- scale（オブジェクト倍率）の妥当性チェック ---
         scale = np.array(rigid_body["scale"], dtype=np.float64)
