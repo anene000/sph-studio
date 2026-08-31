@@ -113,6 +113,21 @@ export default function ScenePage() {
                 <input type="number" step={1} value={b.density} onChange={(e) => updateFluidBlock(i, { density: parseFloat(e.target.value) })} style={{ ...ui.input, width: 90 }} />
                 <ColorEdit value={b.color} onChange={(c) => updateFluidBlock(i, { color: c })} />
               </Field>
+              <Field label="粒子半径 particleRadius（このブロック）">
+                <input
+                  type="number"
+                  step={0.001}
+                  min={0}
+                  value={b.particleRadius ?? ""}
+                  placeholder={`既定 ${scene.Configuration.particleRadius}`}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateFluidBlock(i, { particleRadius: v === "" ? undefined : Math.max(0, parseFloat(v)) });
+                  }}
+                  style={{ ...ui.input, width: 110 }}
+                />
+                <span style={{ fontSize: 11, opacity: 0.6 }}>空欄=全体設定を使用（ブロックごとに変更可）</span>
+              </Field>
             </div>
           ))}
 

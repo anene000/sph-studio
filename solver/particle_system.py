@@ -49,17 +49,33 @@ class ParticleSystem:
         self.material_solid = 0
         self.material_fluid = 1
 
-        self.particle_radius = 0.01  # particle radius
+        self.particle_radius = 0.01  # particle radius (global default)
         self.particle_radius = self.cfg.get_cfg("particleRadius")
 
         self.particle_diameter = 2 * self.particle_radius
-        self.support_radius = self.particle_radius * 4.0  # support radius
+        self.support_radius = self.particle_radius * 4.0  # support radius (global default)
         self.m_V0 = 0.8 * self.particle_diameter ** self.dim
+
+        # ========== Per-fluid-block particle size (multi-resolution) ==========
+        # Each FluidBlock may override "particleRadius"; rigid bodies/blocks use the
+        # global radius. The neighbor grid is sized to the COARSEST support radius so
+        # a single (-1,0,+1) stencil still covers every interaction; each particle
+        # carries its own support radius (h) used in the kernels. With a uniform
+        # radius everywhere this reduces exactly to the original behavior.
+        block_radii = [self.particle_radius]
+        for fb in self.cfg.get_fluid_blocks():
+            r = fb.get("particleRadius")
+            if r is not None:
+                assert float(r) > 0.0, f"FluidBlock particleRadius must be > 0, got {r}"
+                block_radii.append(float(r))
+        self.max_particle_radius = max(block_radii)
+        self.min_particle_radius = min(block_radii)
+        self.max_support_radius = self.max_particle_radius * 4.0
 
         self.particle_num = ti.field(int, shape=())
 
-        # Grid related properties
-        self.grid_size = self.support_radius
+        # Grid related properties (sized to the coarsest support radius)
+        self.grid_size = self.max_support_radius
         self.grid_num = np.ceil(self.domain_size / self.grid_size).astype(int)
         print("grid size: ", self.grid_num)
         self.padding = self.grid_size
@@ -140,7 +156,9 @@ class ParticleSystem:
         fluid_blocks = self.cfg.get_fluid_blocks()
         fluid_particle_num = 0
         for fluid in fluid_blocks:
-            particle_num = self.compute_cube_particle_num(fluid["start"], fluid["end"])
+            _fr = fluid.get("particleRadius")
+            _fd = 2.0 * float(_fr) if _fr is not None else self.particle_diameter
+            particle_num = self.compute_cube_particle_num(fluid["start"], fluid["end"], particle_diameter=_fd)
             fluid["particleNum"] = particle_num
             self.object_collection[fluid["objectId"]] = fluid
             fluid_particle_num += particle_num
@@ -195,6 +213,8 @@ class ParticleSystem:
         self.acceleration = ti.Vector.field(self.dim, dtype=float, shape=self.particle_max_num)
         self.m_V = ti.field(dtype=float, shape=self.particle_max_num)
         self.m = ti.field(dtype=float, shape=self.particle_max_num)
+        # Per-particle support radius (smoothing length h) for multi-resolution SPH.
+        self.support_r = ti.field(dtype=float, shape=self.particle_max_num)
         self.density = ti.field(dtype=float, shape=self.particle_max_num)
         self.pressure = ti.field(dtype=float, shape=self.particle_max_num)
         self.material = ti.field(dtype=int, shape=self.particle_max_num)
@@ -213,6 +233,7 @@ class ParticleSystem:
         self.acceleration_buffer = ti.Vector.field(self.dim, dtype=float, shape=self.particle_max_num)
         self.m_V_buffer = ti.field(dtype=float, shape=self.particle_max_num)
         self.m_buffer = ti.field(dtype=float, shape=self.particle_max_num)
+        self.support_r_buffer = ti.field(dtype=float, shape=self.particle_max_num)
         self.density_buffer = ti.field(dtype=float, shape=self.particle_max_num)
         self.pressure_buffer = ti.field(dtype=float, shape=self.particle_max_num)
         self.material_buffer = ti.field(dtype=int, shape=self.particle_max_num)
@@ -250,10 +271,11 @@ class ParticleSystem:
                           lower_corner=start,
                           cube_size=(end-start)*scale,
                           velocity=velocity,
-                          density=density, 
+                          density=density,
                           is_dynamic=1, # enforce fluid dynamic
                           color=color,
-                          material=1) # 1 indicates fluid
+                          material=1, # 1 indicates fluid
+                          particle_radius=fluid.get("particleRadius")) # per-block particle size (optional)
         
         # TODO: Handle rigid block
         # Rigid block
@@ -310,19 +332,20 @@ class ParticleSystem:
             raise NotImplementedError(f"Solver type {solver_type} has not been implemented.")
 
     @ti.func
-    def add_particle(self, p, obj_id, x, v, density, pressure, material, is_dynamic, color):
+    def add_particle(self, p, obj_id, x, v, density, pressure, material, is_dynamic, color, m_V0, support):
         self.object_id[p] = obj_id
         self.x[p] = x
         self.x_0[p] = x
         self.v[p] = v
         self.density[p] = density
-        self.m_V[p] = self.m_V0
-        self.m[p] = self.m_V0 * density
+        self.m_V[p] = m_V0
+        self.m[p] = m_V0 * density
+        self.support_r[p] = support
         self.pressure[p] = pressure
         self.material[p] = material
         self.is_dynamic[p] = is_dynamic
         self.color[p] = color
-    
+
     def add_particles(self,
                       object_id: int,
                       new_particles_num: int,
@@ -332,9 +355,16 @@ class ParticleSystem:
                       new_particle_pressure: ti.types.ndarray(),
                       new_particles_material: ti.types.ndarray(),
                       new_particles_is_dynamic: ti.types.ndarray(),
-                      new_particles_color: ti.types.ndarray()
+                      new_particles_color: ti.types.ndarray(),
+                      obj_support: float = -1.0,
+                      obj_m_V0: float = -1.0
                       ):
-        
+        # Default to the global support radius / rest volume (rigid bodies, or fluid
+        # blocks without a per-block particleRadius) -> uniform-resolution behavior.
+        if obj_support < 0.0:
+            obj_support = self.support_radius
+        if obj_m_V0 < 0.0:
+            obj_m_V0 = self.m_V0
         self._add_particles(object_id,
                       new_particles_num,
                       new_particles_positions,
@@ -343,7 +373,9 @@ class ParticleSystem:
                       new_particle_pressure,
                       new_particles_material,
                       new_particles_is_dynamic,
-                      new_particles_color
+                      new_particles_color,
+                      obj_support,
+                      obj_m_V0
                       )
 
     @ti.kernel
@@ -356,7 +388,9 @@ class ParticleSystem:
                       new_particle_pressure: ti.types.ndarray(),
                       new_particles_material: ti.types.ndarray(),
                       new_particles_is_dynamic: ti.types.ndarray(),
-                      new_particles_color: ti.types.ndarray()):
+                      new_particles_color: ti.types.ndarray(),
+                      obj_support: float,
+                      obj_m_V0: float):
         for p in range(self.particle_num[None], self.particle_num[None] + new_particles_num):
             v = ti.Vector.zero(float, self.dim)
             x = ti.Vector.zero(float, self.dim)
@@ -368,7 +402,9 @@ class ParticleSystem:
                               new_particle_pressure[p - self.particle_num[None]],
                               new_particles_material[p - self.particle_num[None]],
                               new_particles_is_dynamic[p - self.particle_num[None]],
-                              ti.Vector([new_particles_color[p - self.particle_num[None], i] for i in range(3)])
+                              ti.Vector([new_particles_color[p - self.particle_num[None], i] for i in range(3)]),
+                              obj_m_V0,
+                              obj_support
                               )
         self.particle_num[None] += new_particles_num
 
@@ -456,16 +492,17 @@ class ParticleSystem:
             self.acceleration_buffer[new_index] = self.acceleration[I]
             self.m_V_buffer[new_index] = self.m_V[I]
             self.m_buffer[new_index] = self.m[I]
+            self.support_r_buffer[new_index] = self.support_r[I]
             self.density_buffer[new_index] = self.density[I]
             self.pressure_buffer[new_index] = self.pressure[I]
             self.material_buffer[new_index] = self.material[I]
             self.color_buffer[new_index] = self.color[I]
             self.is_dynamic_buffer[new_index] = self.is_dynamic[I]
-    
+
             if ti.static(self.simulation_method == 4):
                 self.dfsph_factor_buffer[new_index] = self.dfsph_factor[I]
                 self.density_adv_buffer[new_index] = self.density_adv[I]
-    
+
         # 3) buffer → 本体へ戻す
         for I in range(pn):
             self.grid_ids[I] = self.grid_ids_buffer[I]
@@ -476,6 +513,7 @@ class ParticleSystem:
             self.acceleration[I] = self.acceleration_buffer[I]
             self.m_V[I] = self.m_V_buffer[I]
             self.m[I] = self.m_buffer[I]
+            self.support_r[I] = self.support_r_buffer[I]
             self.density[I] = self.density_buffer[I]
             self.pressure[I] = self.pressure_buffer[I]
             self.material[I] = self.material_buffer[I]
@@ -597,7 +635,12 @@ class ParticleSystem:
                         # Minimum-image displacement: the neighbor's periodic image
                         # position is x[p_j] + shift (shift is 0 on non-periodic axes).
                         r = self.x[p_i] - (self.x[p_j] + shift)
-                        if r.dot(r) < self.support_radius * self.support_radius:
+                        # Multi-resolution cutoff: visit a pair within the larger of
+                        # the two support radii (kernels return 0 beyond their own h,
+                        # so this is a safe superset). Reduces to support_radius^2
+                        # when the resolution is uniform.
+                        cutoff = ti.max(self.support_r[p_i], self.support_r[p_j])
+                        if r.dot(r) < cutoff * cutoff:
                             task(p_i, p_j, r, ret)
 
     @ti.kernel
@@ -855,11 +898,12 @@ class ParticleSystem:
         return voxelized_points_np
 
 
-    def compute_cube_particle_num(self, start, end):
+    def compute_cube_particle_num(self, start, end, particle_diameter=None):
+        diameter = self.particle_diameter if particle_diameter is None else particle_diameter
         num_dim = []
         for i in range(self.dim):
             num_dim.append(
-                np.arange(start[i], end[i], self.particle_diameter))
+                np.arange(start[i], end[i], diameter))
         return reduce(lambda x, y: x * y,
                                    [len(n) for n in num_dim])
 
@@ -872,13 +916,21 @@ class ParticleSystem:
                  color=(0,0,0),
                  density=None,
                  pressure=None,
-                 velocity=None):
+                 velocity=None,
+                 particle_radius=None):
+
+        # Per-block particle size: fluid blocks may use their own radius (spacing,
+        # support radius and rest volume); rigid uses the global radius.
+        r = self.particle_radius if particle_radius is None else particle_radius
+        diameter = 2.0 * r
+        support = 4.0 * r
+        m_V0 = 0.8 * diameter ** self.dim
 
         num_dim = []
         for i in range(self.dim):
             num_dim.append(
                 np.arange(lower_corner[i], lower_corner[i] + cube_size[i],
-                          self.particle_diameter))
+                          diameter))
         num_new_particles = reduce(lambda x, y: x * y,
                                    [len(n) for n in num_dim])
         print('particle num ', num_new_particles)
@@ -900,4 +952,5 @@ class ParticleSystem:
         color_arr = np.stack([np.full_like(np.zeros(num_new_particles, dtype=np.int32), c) for c in color], axis=1)
         density_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), density if density is not None else 1000.)
         pressure_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), pressure if pressure is not None else 0.)
-        self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr)
+        self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr,
+                           obj_support=support, obj_m_V0=m_V0)

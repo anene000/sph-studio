@@ -120,6 +120,15 @@ class Block(BaseModel):
     density: float = 1000.0
     color: List[int] = Field(default_factory=lambda: [50, 100, 200])
     isDynamic: bool = False
+    # Optional per-block particle radius (multi-resolution). None -> use the global
+    # Configuration.particleRadius. Only meaningful for FluidBlocks.
+    particleRadius: Optional[float] = None
+
+    @model_validator(mode="after")
+    def _check_particle_radius(self):
+        if self.particleRadius is not None and self.particleRadius <= 0:
+            raise ValueError("Block particleRadius must be > 0 when set")
+        return self
 
 
 class ExportInterval(BaseModel):

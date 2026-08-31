@@ -98,6 +98,8 @@ export const BlockSchema = z
     density: z.number().default(1000),
     color: z.array(z.number().int()).default([50, 100, 200]),
     isDynamic: z.boolean().default(false),
+    // Optional per-block particle radius (multi-resolution). undefined -> global.
+    particleRadius: z.number().positive().optional(),
   })
   .passthrough();
 

@@ -214,6 +214,31 @@ def test_rigidbody_upaxis_default_and_validation():
         pass
 
 
+def test_fluidblock_particle_radius_optional_and_validated():
+    from app.models import Block
+    b = Block(objectId=0, start=[0, 0, 0], end=[1, 1, 1])
+    assert b.particleRadius is None  # default -> use global
+    b2 = Block(objectId=0, start=[0, 0, 0], end=[1, 1, 1], particleRadius=0.012)
+    assert b2.particleRadius == 0.012
+    try:
+        Block(objectId=0, start=[0, 0, 0], end=[1, 1, 1], particleRadius=0.0)
+        assert False, "expected validation error for non-positive particleRadius"
+    except Exception:
+        pass
+
+
+def test_scene_with_per_block_radius_round_trips():
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data.setdefault("FluidBlocks", [])
+    data["FluidBlocks"] = [{
+        "objectId": 0, "start": [0, 0, 0], "end": [0.3, 0.3, 0.3], "particleRadius": 0.012,
+    }]
+    scene = config_io.parse_scene(data)
+    assert scene.FluidBlocks[0].particleRadius == 0.012
+    dumped = config_io.scene_to_dict(scene)
+    assert dumped["FluidBlocks"][0]["particleRadius"] == 0.012
+
+
 def test_upaxis_z_converts_blender_zup_to_yup(tmp_path):
     """upAxis='z' must move the tall (Blender-up=Z) extent onto the solver's Y axis."""
     pytest.importorskip("trimesh", reason="trimesh not installed")

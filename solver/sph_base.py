@@ -35,9 +35,12 @@ class SPHBase:
         self.drive_force = np.array(drive, dtype=np.float64)
 
     @ti.func
-    def cubic_kernel(self, r_norm):
+    def cubic_kernel(self, r_norm, h):
+        # `h` is the smoothing length (support radius) for this interaction. It is
+        # passed per-call so that fluid blocks can use their own particle size
+        # (multi-resolution SPH); with a uniform resolution h == ps.support_radius
+        # for every call, reproducing the original single-resolution behavior.
         res = ti.cast(0.0, ti.f32)
-        h = self.ps.support_radius
         # value of cubic spline smoothing kernel
         k = 1.0
         if self.ps.dim == 1:
@@ -58,9 +61,8 @@ class SPHBase:
         return res
 
     @ti.func
-    def cubic_kernel_derivative(self, r):
-        h = self.ps.support_radius
-        # derivative of cubic spline smoothing kernel
+    def cubic_kernel_derivative(self, r, h):
+        # derivative of cubic spline smoothing kernel (see cubic_kernel for `h`)
         k = 1.0
         if self.ps.dim == 1:
             k = 4 / 3
@@ -82,13 +84,19 @@ class SPHBase:
         return res
 
     @ti.func
+    def h_ij(self, p_i, p_j):
+        # Symmetric smoothing length for a pair (mean of the two support radii).
+        return 0.5 * (self.ps.support_r[p_i] + self.ps.support_r[p_j])
+
+    @ti.func
     def viscosity_force(self, p_i, p_j, r):
         # Compute the viscosity force contribution
+        h = self.h_ij(p_i, p_j)
         v_xy = (self.ps.v[p_i] -
                 self.ps.v[p_j]).dot(r)
         res = 2 * (self.ps.dim + 2) * self.viscosity * (self.ps.m[p_j] / (self.ps.density[p_j])) * v_xy / (
-            r.norm()**2 + 0.01 * self.ps.support_radius**2) * self.cubic_kernel_derivative(
-                r)
+            r.norm()**2 + 0.01 * h**2) * self.cubic_kernel_derivative(
+                r, h)
         return res
 
     def initialize(self):
@@ -109,14 +117,14 @@ class SPHBase:
         #for p_i in ti.grouped(self.ps.x):
             if not self.ps.is_static_rigid_body(p_i):
                 continue
-            delta = self.cubic_kernel(0.0)
+            delta = self.cubic_kernel(0.0, self.ps.support_r[p_i])
             self.ps.for_all_neighbors(p_i, self.compute_boundary_volume_task, delta)
             self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
 
     @ti.func
     def compute_boundary_volume_task(self, p_i, p_j, r: ti.template(), delta: ti.template()):
         if self.ps.material[p_j] == self.ps.material_solid:
-            delta += self.cubic_kernel(r.norm())
+            delta += self.cubic_kernel(r.norm(), self.ps.support_r[p_i])
 
 
     @ti.kernel
@@ -126,7 +134,7 @@ class SPHBase:
         #for p_i in ti.grouped(self.ps.x):
             if not self.ps.is_dynamic_rigid_body(p_i):
                 continue
-            delta = self.cubic_kernel(0.0)
+            delta = self.cubic_kernel(0.0, self.ps.support_r[p_i])
             self.ps.for_all_neighbors(p_i, self.compute_boundary_volume_task, delta)
             self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
 
