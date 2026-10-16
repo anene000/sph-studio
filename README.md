@@ -156,11 +156,11 @@ pnpm --filter web dev
 1. **S0 ホーム** — 新規計算 / ① 設定ファイル(JSON)インポート / バックエンド状態 / ジョブ一覧。
 2. **S1 シーン** — ①解析空間、②流体ブロック、③剛体を **複数** 追加・編集（3D 即時プレビュー）。
    「解析空間フィット検証」で超過時に**推奨倍率**を提示・ワンクリック適用。
-3. **S2 パラメータ** — ソルバ / 境界条件（**軸ごとの周期境界 ON/OFF・駆動力・流入速度制御**）/ 場の物理（重力・粘性・表面張力）/ WCSPH 係数 / 計算範囲。
+3. **S2 パラメータ** — ソルバ / 境界条件（**周期境界・駆動力・流入速度制御・輸送力ゾーン**）/ 場の物理（重力・粘性・**壁粘性**・表面張力）/ WCSPH 係数 / 計算範囲。剛体の **軸回転（シャフト）** は S1 で設定。
 4. **S3 出力設定** — 時間刻み間隔、流体フィールド、オブジェクト別個追跡。
 5. **S4 実行** — レビュー → 実行で **`scene.json` が自動生成**されソルバ起動。
 6. **S5 進捗** — WebSocket で進捗バー・ETA・ライブログ・キャンセル。
-7. **S6 結果** — フレームスクラバで 3D 再生、CSV 一括ダウンロード。
+7. **S6 結果** — フレームスクラバで 3D 再生（**圧力/速度カラーマップ**切替）、CSV 一括ダウンロード。
 8. **S7 環境設定** — API/ディレクトリ/Python/`SPH_ARCH` の情報表示。
 
 ---
@@ -180,7 +180,8 @@ python solver/run_headless.py \
 サンプルシーン: `sample_bunny`（流体+剛体）, `sample_dambreak`（流体のみ）,
 `sample_two_fluids`（左右2流体+剛体、複数配置の例）,
 `sample_periodic_channel`（x 周期境界＋駆動力で流す周期チャネル流の例）,
-`sample_inlet_channel`（未満水からの流入速度制御・放物線プロファイルの例）。
+`sample_inlet_channel`（未満水からの流入速度制御・放物線プロファイルの例）,
+`sample_shaft_pump`（回転シャフト＋壁粘性で撹拌＋輸送力で流す ミキサー/ポンプの例）。
 
 ---
 
@@ -200,6 +201,9 @@ SPH Studio は **SPH（Smoothed Particle Hydrodynamics, 平滑化粒子流体力
 | **表面張力** | 液滴の凝集・界面のまとまり | 粒子間凝集力（`surfaceTension`） |
 | **流体–剛体連成（一方向/双方向）** | 固定壁・動的剛体と流体の相互作用 | 境界粒子の体積補正 + 圧力/粘性の反作用 |
 | **剛体運動** | 動的剛体（`isDynamic`）の並進・回転 | 形状マッチング（shape matching）による剛体拘束 |
+| **撹拌・ポンプ輸送（ミキサー）** | 回転シャフトで流体を撹拌し、パイプ領域で流出口へ輸送 | キネマティック軸回転（`angularVelocity`）＋壁粘性（`boundaryViscosity`）＋領域輸送力（`transportZones`） |
+| **マルチ解像度** | 流体だけ（ブロック別に）細かくし、剛体は粗いまま | 粒子ごとの平滑化長 h（`FluidBlocks[].particleRadius`） |
+| **圧力・速度の可視化** | 流出口や撹拌まわりの圧力・速度分布 | 結果3Dビューアの圧力/速度カラーマップ（S6） |
 | **周期境界・完全発達流** | 周期チャネル流・連続流れ（流入口=流出口） | 周期境界（位置ラップ＋minimum-image 近傍探索）＋駆動体積力 |
 | **開放境界からの流入（未満水/連続流入）** | 未満水状態からの連続流入・非定常な流れの発達 | 流入ゾーンでの速度緩和（uniform/parabolic プロファイル・固定クランプではなく動的追従） |
 | **壁境界（衝突）** | 解析空間の壁での反射・すり抜け防止 | `enforce_boundary` による衝突応答（非周期軸） |
@@ -254,16 +258,20 @@ SPH Studio は **SPH（Smoothed Particle Hydrodynamics, 平滑化粒子流体力
 | `inletThickness` | 流入ゾーンの厚み [m]（0=自動: 2×support） | 流入ゾーン判定 |
 | `inletRelaxation` | 緩和係数 0〜1（1=即時, 小=緩やか） | 動的流入の追従度 |
 | `inletProfile` / `profileAxis` | `uniform`/`parabolic` と横断軸 | 速度プロファイル形状 |
+| `boundaryViscosity` | 壁粘性（0=free-slip）。>0 で移動/回転する壁が流体を駆動（no-slip） | 境界からの運動量伝達 |
+| `transportZones` | 箱領域 `{min,max,force}` の配列。領域内の流体に一定の体積力（パイプポンプ） | 領域別の輸送力 |
 | `enforceDomainFit` | 超過時に推奨倍率を出しエラー終了 | 事前検証 |
 | `totalTime` または `totalSteps` | 総計算時間／総ステップ | ループ長 |
 
 ### ② `FluidBlocks[]`（流体・複数可）
 `objectId`, `start`, `end`（領域）, `translation`, `scale`, `velocity`（初速）,
-`density`, `color`。
+`density`, `color`。任意で `particleRadius`（**ブロック別の粒子サイズ**＝マルチ解像度。空=全体設定）。
 
 ### ③ `RigidBodies[]`（剛体メッシュ・複数可）
 `objectId`, `geometryFile`（.obj）, `translation`（重心基準）, `scale`（倍率）,
-`rotationAxis`, `rotationAngle`, `velocity`（初速）, `density`, `color`,
+`rotationAxis`, `rotationAngle`, `upAxis`（`y`/`z`=Blender Z-up→Y-up 変換）,
+`angularVelocity`（**軸回転 [rad/s]**・位置固定の規定運動）, `spinAxis`, `spinCenter`（既定=重心）,
+`velocity`（初速）, `density`, `color`,
 `isDynamic`（true=PBD 動的剛体 / false=固定壁）。
 
 ### `Export`（出力）

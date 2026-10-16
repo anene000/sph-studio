@@ -1,0 +1,63 @@
+{
+  "Configuration": {
+    "domainStart": [0.0, 0.0, 0.0],
+    "domainEnd": [1.0, 0.4, 0.4],
+    "particleRadius": 0.02,
+    "simulationMethod": 0,
+    "timeStepSize": 0.0002,
+    "gravitation": [0.0, 0.0, 0.0],
+    "density0": 1000,
+    "stiffness": 10000,
+    "exponent": 5,
+    "viscosity": 0.05,
+    "surfaceTension": 0.0,
+    "boundaryViscosity": 0.08,
+    "boundaryHandlingMethod": 0,
+    "transportZones": [
+      { "min": [0.0, 0.0, 0.0], "max": [0.56, 0.4, 0.4], "force": [3.0, 0.0, 0.0] }
+    ],
+    "enforceDomainFit": false,
+    "numberOfStepsPerRenderUpdate": 1,
+    "totalTime": 1.0
+  },
+  "RigidBlocks": [
+    {
+      "objectId": 1,
+      "start": [0.0, 0.0, 0.0],
+      "end": [0.08, 0.26, 0.08],
+      "translation": [0.50, 0.09, 0.16],
+      "scale": [1, 1, 1],
+      "velocity": [0.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [200, 200, 210],
+      "isDynamic": false,
+      "angularVelocity": 12.0,
+      "spinAxis": [0.0, 1.0, 0.0]
+    }
+  ],
+  "FluidBlocks": [
+    {
+      "objectId": 0,
+      "start": [0.0, 0.0, 0.0],
+      "end": [0.22, 0.18, 0.18],
+      "translation": [0.12, 0.12, 0.12],
+      "scale": [1, 1, 1],
+      "velocity": [0.0, 0.0, 0.0],
+      "density": 1000.0,
+      "color": [50, 100, 200]
+    }
+  ],
+  "Export": {
+    "outputDir": "outputs/shaft_pump",
+    "interval": { "mode": "steps", "value": 40 },
+    "fluid": {
+      "enabled": true,
+      "objectIds": [0],
+      "fields": ["position", "velocity", "density", "pressure"],
+      "format": "csv"
+    },
+    "objects": [],
+    "ply": false,
+    "obj": false
+  }
+}
