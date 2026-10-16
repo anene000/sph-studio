@@ -20,14 +20,47 @@ function pointsObject(pts: number[][], color: string, size: number) {
   return new THREE.Points(geom, mat);
 }
 
+// Blue -> cyan -> green -> yellow -> red colormap for a normalized value t in [0,1].
+function colormap(t: number): [number, number, number] {
+  const c = Math.min(1, Math.max(0, t)) * 4;
+  if (c < 1) return [0, c, 1];
+  if (c < 2) return [0, 1, 2 - c];
+  if (c < 3) return [c - 2, 1, 0];
+  return [1, 4 - c, 0];
+}
+
+function coloredPointsObject(pts: number[][], scalar: number[], lo: number, hi: number, size: number) {
+  const geom = new THREE.BufferGeometry();
+  const pos = new Float32Array(pts.length * 3);
+  const col = new Float32Array(pts.length * 3);
+  const span = hi - lo > 1e-12 ? hi - lo : 1;
+  for (let i = 0; i < pts.length; i++) {
+    pos[i * 3] = pts[i][0];
+    pos[i * 3 + 1] = pts[i][1];
+    pos[i * 3 + 2] = pts[i][2];
+    const [r, g, b] = colormap((scalar[i] - lo) / span);
+    col[i * 3] = r;
+    col[i * 3 + 1] = g;
+    col[i * 3 + 2] = b;
+  }
+  geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({ size, sizeAttenuation: true, vertexColors: true });
+  return new THREE.Points(geom, mat);
+}
+
 export default function ResultViewer3D({
   fluid,
   objects,
   domain,
+  fluidScalar,
+  scalarRange,
 }: {
   fluid: number[][];
   objects: Record<string, number[][]>;
   domain?: Domain;
+  fluidScalar?: number[];
+  scalarRange?: [number, number];
 }) {
   const all = useMemo(() => [...fluid, ...Object.values(objects).flat()], [fluid, objects]);
 
@@ -54,7 +87,15 @@ export default function ResultViewer3D({
     return { center, size, diag };
   }, [domain, all]);
 
-  const fluidObj = useMemo(() => pointsObject(fluid, "#4aa3ff", diag * 0.012), [fluid, diag]);
+  const useColormap = !!fluidScalar && fluidScalar.length === fluid.length && fluid.length > 0;
+  const fluidObj = useMemo(() => {
+    if (useColormap) {
+      const lo = scalarRange ? scalarRange[0] : Math.min(...fluidScalar!);
+      const hi = scalarRange ? scalarRange[1] : Math.max(...fluidScalar!);
+      return coloredPointsObject(fluid, fluidScalar!, lo, hi, diag * 0.012);
+    }
+    return pointsObject(fluid, "#4aa3ff", diag * 0.012);
+  }, [fluid, fluidScalar, scalarRange, useColormap, diag]);
   const objObjs = useMemo(
     () => Object.values(objects).map((pts) => pointsObject(pts, "#e6e6e6", diag * 0.014)),
     [objects, diag]

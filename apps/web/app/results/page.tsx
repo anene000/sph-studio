@@ -13,7 +13,13 @@ const ResultViewer3D = dynamic(() => import("@/components/ResultViewer3D"), {
 });
 
 type FrameMeta = { frame: number; simTime: number };
-type FramePoints = { fluid: number[][]; objects: Record<string, number[][]> };
+type FramePoints = {
+  fluid: number[][];
+  objects: Record<string, number[][]>;
+  fluidPressure?: number[];
+  fluidSpeed?: number[];
+};
+type ColorBy = "none" | "pressure" | "speed";
 
 // U14/U18: S6 results. Query-param route (/results?id=...) for static export.
 function Results() {
@@ -22,6 +28,12 @@ function Results() {
   const [idx, setIdx] = useState(0);
   const [points, setPoints] = useState<FramePoints>({ fluid: [], objects: {} });
   const [domain, setDomain] = useState<{ start: number[]; end: number[] } | undefined>();
+  const [colorBy, setColorBy] = useState<ColorBy>("none");
+
+  const scalar =
+    colorBy === "pressure" ? points.fluidPressure : colorBy === "speed" ? points.fluidSpeed : undefined;
+  const range: [number, number] | undefined =
+    scalar && scalar.length ? [Math.min(...scalar), Math.max(...scalar)] : undefined;
 
   useEffect(() => {
     if (!id) return;
@@ -53,10 +65,34 @@ function Results() {
       </header>
 
       <section style={{ position: "relative" }}>
-        <ResultViewer3D fluid={points.fluid} objects={points.objects} domain={domain} />
+        <ResultViewer3D
+          fluid={points.fluid}
+          objects={points.objects}
+          domain={domain}
+          fluidScalar={scalar}
+          scalarRange={range}
+        />
         <div style={{ position: "absolute", top: 10, left: 12, fontSize: 12, opacity: 0.7 }}>
-          橙=解析空間グリッド（固定） / 青=流体パーティクル / 白=オブジェクト
+          橙=解析空間グリッド（固定） / {colorBy === "none" ? "青=流体" : "流体=カラーマップ"} / 白=オブジェクト
         </div>
+        <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 8, alignItems: "center" }}>
+          <label style={{ fontSize: 12, opacity: 0.8 }}>色付け</label>
+          <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} style={{ ...ui.input, fontSize: 12, padding: "3px 6px" }}>
+            <option value="none">なし（単色）</option>
+            <option value="pressure">圧力 pressure</option>
+            <option value="speed">速度 |v|</option>
+          </select>
+        </div>
+        {colorBy !== "none" && range && (
+          <div style={{ position: "absolute", bottom: 10, right: 12, fontSize: 11, background: "#0b0e14cc", padding: "6px 8px", borderRadius: 6 }}>
+            <div style={{ width: 160, height: 10, borderRadius: 3, background: "linear-gradient(90deg,#00f,#0ff,#0f0,#ff0,#f00)" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+              <span>{range[0].toPrecision(3)}</span>
+              <span>{colorBy === "pressure" ? "圧力 [Pa]" : "|v| [m/s]"}</span>
+              <span>{range[1].toPrecision(3)}</span>
+            </div>
+          </div>
+        )}
       </section>
 
       <footer style={{ padding: "12px 16px", borderTop: "1px solid #263041" }}>
