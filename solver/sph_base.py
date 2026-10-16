@@ -97,6 +97,21 @@ class SPHBase:
         return 0.5 * (self.ps.support_r[p_i] + self.ps.support_r[p_j])
 
     @ti.func
+    def transport_accel(self, p_i):
+        # Summed transport-force acceleration for a fluid particle inside any pipe
+        # pump zone (axis-aligned box). Zero when outside all zones / no zones.
+        acc = ti.Vector([0.0 for _ in range(self.ps.dim)])
+        for z in ti.static(range(self.ps.n_transport)):
+            inside = True
+            for d in ti.static(range(self.ps.dim)):
+                if self.ps.x[p_i][d] < self.ps.transport_min[z][d] or \
+                   self.ps.x[p_i][d] > self.ps.transport_max[z][d]:
+                    inside = False
+            if inside:
+                acc += self.ps.transport_force[z]
+        return acc
+
+    @ti.func
     def viscosity_force(self, p_i, p_j, r):
         # Compute the viscosity force contribution
         h = self.h_ij(p_i, p_j)

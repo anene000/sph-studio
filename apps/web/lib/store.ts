@@ -29,6 +29,7 @@ export const defaultScene: Scene = {
     inletRelaxation: 1,
     inletProfile: "uniform",
     profileAxis: 1,
+    transportZones: [],
     enforceDomainFit: true,
     numberOfStepsPerRenderUpdate: 1,
     totalTime: 0.5,

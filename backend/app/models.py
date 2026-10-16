@@ -13,6 +13,17 @@ from pydantic import BaseModel, Field, model_validator
 Vec3 = List[float]
 
 
+class TransportZone(BaseModel):
+    """Axis-aligned box in which fluid receives a constant body force (acceleration,
+    m/s^2) — e.g. a pipe pump driving flow toward an outlet."""
+
+    model_config = {"extra": "allow"}
+
+    min: Vec3
+    max: Vec3
+    force: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+
+
 class Configuration(BaseModel):
     """① Analysis space + solver / field-physics / simulation settings.
 
@@ -67,6 +78,8 @@ class Configuration(BaseModel):
     inletRelaxation: float = 1.0
     inletProfile: Literal["uniform", "parabolic"] = "uniform"
     profileAxis: int = 1
+    # Pipe-pump transport-force zones (fluid inside a box gets a constant body force).
+    transportZones: List[TransportZone] = Field(default_factory=list)
     enforceDomainFit: bool = True
     numberOfStepsPerRenderUpdate: int = 1
     totalTime: Optional[float] = 5.0

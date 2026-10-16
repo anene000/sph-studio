@@ -246,6 +246,20 @@ def test_boundary_viscosity_and_spin_defaults_and_round_trip():
     assert dumped["RigidBodies"][0]["angularVelocity"] == 12.0
 
 
+def test_transport_zones_default_and_round_trip():
+    from app.models import Configuration
+    cfg = Configuration(domainStart=[0, 0, 0], domainEnd=[1, 1, 1])
+    assert cfg.transportZones == []
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["transportZones"] = [
+        {"min": [0, 0, 0], "max": [0.4, 1, 1], "force": [6.0, 0, 0]},
+    ]
+    scene = config_io.parse_scene(data)
+    assert scene.Configuration.transportZones[0].force == [6.0, 0, 0]
+    dumped = config_io.scene_to_dict(scene)
+    assert dumped["Configuration"]["transportZones"][0]["max"] == [0.4, 1, 1]
+
+
 def test_scene_with_per_block_radius_round_trips():
     data = json.loads(SAMPLE.read_text(encoding="utf-8"))
     data.setdefault("FluidBlocks", [])

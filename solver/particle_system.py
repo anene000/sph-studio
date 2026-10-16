@@ -147,6 +147,27 @@ class ParticleSystem:
                   f"v={_iv} thickness={self.inlet_thickness} profile="
                   f"{'parabolic' if self.inlet_parabolic else 'uniform'}")
 
+        # ========== Transport-force zones (pipe pump) ==========
+        # A list of axis-aligned boxes; fluid inside a box gets a constant body force
+        # (acceleration, m/s^2) — e.g. to drive flow along a pipe toward an outlet.
+        zones = self.cfg.get_cfg("transportZones") or []
+        self.n_transport = len(zones)
+        n_alloc = max(1, self.n_transport)
+        self.transport_min = ti.Vector.field(self.dim, dtype=ti.f32, shape=n_alloc)
+        self.transport_max = ti.Vector.field(self.dim, dtype=ti.f32, shape=n_alloc)
+        self.transport_force = ti.Vector.field(self.dim, dtype=ti.f32, shape=n_alloc)
+        for zi, z in enumerate(zones):
+            zmin = list(map(float, z["min"]))
+            zmax = list(map(float, z["max"]))
+            zfrc = list(map(float, z.get("force", [0.0] * self.dim)))
+            assert len(zmin) == self.dim and len(zmax) == self.dim and len(zfrc) == self.dim, \
+                f"transportZones[{zi}] min/max/force must have length {self.dim}"
+            self.transport_min[zi] = ti.Vector(zmin)
+            self.transport_max[zi] = ti.Vector(zmax)
+            self.transport_force[zi] = ti.Vector(zfrc)
+        if self.n_transport:
+            print(f"transport zones: {self.n_transport}")
+
         # All objects id and its particle num
         self.object_collection = dict()
         self.object_id_rigid_body = set()

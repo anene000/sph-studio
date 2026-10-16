@@ -100,6 +100,8 @@ class DFSPHSolver(SPHBase):
                 # Driving body force (pressure-gradient equivalent) to maintain
                 # the flow in a periodic / fully-developed channel.
                 d_v += ti.Vector(self.drive_force)
+                # Region transport force (pipe pump) when inside a transport zone.
+                d_v += self.transport_accel(p_i)
                 self.ps.acceleration[p_i] = d_v
 
 

@@ -209,6 +209,51 @@ export default function ParamsPage() {
           </>
         )}
 
+        <Row label="輸送力ゾーン transportZones（パイプポンプ）">
+          <button
+            style={{ ...ui.button, fontSize: 13, padding: "4px 10px" }}
+            onClick={() =>
+              mutate((s) => {
+                if (!s.Configuration.transportZones) s.Configuration.transportZones = [];
+                s.Configuration.transportZones.push({ min: [0, 0, 0], max: [0.1, 0.1, 0.1], force: [0, 0, 0] });
+              })
+            }
+          >
+            ＋ゾーン追加
+          </button>
+        </Row>
+        {(c.transportZones ?? []).map((z, zi) => (
+          <div key={zi} style={{ ...ui.card, padding: "8px 12px", marginTop: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <strong style={{ fontSize: 13 }}>ゾーン #{zi + 1}</strong>
+              <button
+                style={{ ...ui.button, background: "#7a2d2d", fontSize: 12, padding: "2px 8px" }}
+                onClick={() => mutate((s) => s.Configuration.transportZones!.splice(zi, 1))}
+              >
+                削除
+              </button>
+            </div>
+            {(["min", "max", "force"] as const).map((key) => (
+              <Row key={key} label={key === "force" ? "force [m/s²]" : key}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[0, 1, 2].map((i) => (
+                    <Num
+                      key={i}
+                      width={64}
+                      value={(z[key]?.[i] as number) ?? 0}
+                      step={key === "force" ? 0.5 : 0.05}
+                      onChange={(v) => mutate((s) => (s.Configuration.transportZones![zi][key][i] = v))}
+                    />
+                  ))}
+                </div>
+              </Row>
+            ))}
+          </div>
+        ))}
+        <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2, marginBottom: 8 }}>
+          箱領域（min〜max）内の流体に一定の体積力 force を加えます（流出口方向へ強制輸送）。
+        </div>
+
         <h2 style={ui.h2}>基本パラメータ</h2>
         <Row label="particleRadius">
           <Num value={c.particleRadius} step={0.001} onChange={(v) => mutate((s) => (s.Configuration.particleRadius = v))} />

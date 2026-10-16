@@ -37,6 +37,10 @@ export const ConfigurationSchema = z
     inletRelaxation: z.number().default(1),
     inletProfile: z.enum(["uniform", "parabolic"]).default("uniform"),
     profileAxis: z.number().int().default(1),
+    // Pipe-pump transport-force zones: fluid inside a box gets a constant body force.
+    transportZones: z
+      .array(z.object({ min: Vec3, max: Vec3, force: Vec3.default([0, 0, 0]) }).passthrough())
+      .default([]),
     enforceDomainFit: z.boolean().default(true),
     numberOfStepsPerRenderUpdate: z.number().int().default(1),
     totalTime: z.number().nullable().default(5),
