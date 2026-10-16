@@ -18,6 +18,14 @@ class SPHBase:
         if _visc is not None:
             self.viscosity = _visc
 
+        # Boundary (wall) viscosity: momentum transfer from solid walls to the fluid.
+        # Historically hard-coded to 0 (free-slip). Set > 0 so a moving/rotating wall
+        # (e.g. a kinematic spinning shaft) can drag the fluid (no-slip drive).
+        self.boundary_viscosity = 0.0
+        _bvisc = self.ps.cfg.get_cfg("boundaryViscosity")
+        if _bvisc is not None:
+            self.boundary_viscosity = _bvisc
+
         self.density_0 = 1000.0  # reference density
         self.density_0 = self.ps.cfg.get_cfg("density0")
 
@@ -319,7 +327,42 @@ class SPHBase:
                     target = self.ps.inlet_velocity_ti[None] * factor
                     self.ps.v[p_i] += self.ps.inlet_relaxation * (target - self.ps.v[p_i])
 
+    @ti.kernel
+    def advance_spin_object(self, object_id: int, omega: float,
+                            ax: float, ay: float, az: float,
+                            cx: float, cy: float, cz: float):
+        # Kinematic (prescribed) axis rotation of a solid object: rotate its particles
+        # about the axis (through center) by omega*dt and set their velocity to the
+        # rigid-body velocity w x r. Position is otherwise fixed and the object is not
+        # affected by the fluid (prescribed motion, not PBD). The fluid feels the wall
+        # velocity through the boundary viscosity term (no-slip drive).
+        k = ti.Vector([ax, ay, az])
+        center = ti.Vector([cx, cy, cz])
+        dtheta = omega * self.dt[None]
+        c = ti.cos(dtheta)
+        s = ti.sin(dtheta)
+        pn = self.ps.particle_num[None]
+        for p_i in range(pn):
+            if self.ps.material[p_i] == self.ps.material_solid and self.ps.object_id[p_i] == object_id:
+                r = self.ps.x[p_i] - center
+                # Rodrigues rotation of r about unit axis k by dtheta
+                r_rot = r * c + k.cross(r) * s + k * (k.dot(r)) * (1.0 - c)
+                self.ps.x[p_i] = center + r_rot
+                # Rigid-body velocity of the wall particle: w x r (w = omega * k)
+                self.ps.v[p_i] = (omega * k).cross(r_rot)
+
+    def advance_spins(self):
+        # Apply the prescribed rotation to every configured spin object.
+        for so in self.ps.spin_objects:
+            ax, ay, az = so["axis"]
+            cx, cy, cz = so["center"]
+            self.advance_spin_object(int(so["objectId"]), float(so["omega"]),
+                                     float(ax), float(ay), float(az),
+                                     float(cx), float(cy), float(cz))
+
     def step(self):
+        if self.ps.spin_objects:
+            self.advance_spins()
         self.ps.initialize_particle_system()
         self.compute_moving_boundary_volume()
         self.substep()

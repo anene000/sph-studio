@@ -320,7 +320,41 @@ class ParticleSystem:
                                np.array([0 for _ in range(num_particles_obj)], dtype=np.int32), # material is solid
                                is_dynamic * np.ones(num_particles_obj, dtype=np.int32), # is_dynamic
                                np.stack([color for _ in range(num_particles_obj)])) # color
-    
+
+        # ========== Kinematic spin objects (prescribed axis rotation) ==========
+        # A rigid body/block with angularVelocity != 0 rotates about spinAxis (through
+        # spinCenter, default = object centroid) at a fixed angular speed. Position is
+        # otherwise fixed and the object is NOT affected by the fluid; the fluid is
+        # driven by the moving wall via boundaryViscosity (no-slip). See
+        # SPHBase.advance_spin_object.
+        self.spin_objects = self._build_spin_objects(fluid_blocks=fluid_blocks)
+
+    def _build_spin_objects(self, fluid_blocks):
+        specs = list(self.cfg.get_rigid_bodies()) + list(self.cfg.get_rigid_blocks())
+        spins = []
+        oid_np = None
+        x_np = None
+        for rb in specs:
+            omega = float(rb.get("angularVelocity", 0.0) or 0.0)
+            if abs(omega) < 1e-12:
+                continue
+            axis = np.array(rb.get("spinAxis", [0.0, 1.0, 0.0]), dtype=np.float64)
+            n = np.linalg.norm(axis)
+            axis = axis / n if n > 1e-9 else np.array([0.0, 1.0, 0.0])
+            center = rb.get("spinCenter")
+            if center is None:
+                # object centroid from its placed particles
+                if oid_np is None:
+                    pn = self.particle_num[None]
+                    oid_np = self.object_id.to_numpy()[:pn]
+                    x_np = self.x.to_numpy()[:pn]
+                mask = oid_np == int(rb["objectId"])
+                center = x_np[mask].mean(axis=0) if mask.any() else np.zeros(self.dim)
+            center = np.array(center, dtype=np.float64)
+            spins.append({"objectId": int(rb["objectId"]), "omega": omega,
+                          "axis": axis.tolist(), "center": center.tolist()})
+            print(f"spin object {rb['objectId']}: omega={omega} axis={axis.tolist()} center={np.round(center,3).tolist()}")
+        return spins
 
     def build_solver(self):
         solver_type = self.cfg.get_cfg("simulationMethod")

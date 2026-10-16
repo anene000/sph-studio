@@ -171,6 +171,24 @@ export default function ScenePage() {
                 </select>
                 <span style={{ fontSize: 11, opacity: 0.6 }}>Blender出力は Z-up を選択</span>
               </Field>
+              <Field label="軸回転 angularVelocity [rad/s]">
+                <input
+                  type="number"
+                  step={0.5}
+                  value={rb.angularVelocity ?? 0}
+                  onChange={(e) => updateRigidBody(i, { angularVelocity: parseFloat(e.target.value) || 0 })}
+                  style={{ ...ui.input, width: 90 }}
+                />
+                <span style={{ fontSize: 11, opacity: 0.6 }}>≠0 でシャフト回転（位置固定・流体非干渉）。要 壁粘性&gt;0</span>
+              </Field>
+              {(rb.angularVelocity ?? 0) !== 0 && (
+                <Field label="回転軸 spinAxis">
+                  <Vec3Edit value={rb.spinAxis ?? [0, 1, 0]} step={1} onChange={(a, v) => mutate((s) => {
+                    if (!s.RigidBodies[i].spinAxis) s.RigidBodies[i].spinAxis = [0, 1, 0];
+                    s.RigidBodies[i].spinAxis![a] = v;
+                  })} />
+                </Field>
+              )}
               <Field label="初速 velocity"><Vec3Edit value={rb.velocity} step={0.5} onChange={(a, v) => mutate((s) => (s.RigidBodies[i].velocity[a] = v))} /></Field>
               <Field label="density">
                 <input type="number" step={1} value={rb.density} onChange={(e) => updateRigidBody(i, { density: parseFloat(e.target.value) })} style={{ ...ui.input, width: 90 }} />

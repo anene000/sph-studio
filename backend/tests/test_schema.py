@@ -227,6 +227,25 @@ def test_fluidblock_particle_radius_optional_and_validated():
         pass
 
 
+def test_boundary_viscosity_and_spin_defaults_and_round_trip():
+    from app.models import Configuration, RigidBody
+    cfg = Configuration(domainStart=[0, 0, 0], domainEnd=[1, 1, 1])
+    assert cfg.boundaryViscosity == 0.0  # free-slip default (backward compatible)
+    rb = RigidBody(objectId=1, geometryFile="x.obj")
+    assert rb.angularVelocity == 0.0 and rb.spinAxis == [0.0, 1.0, 0.0] and rb.spinCenter is None
+    # round-trip a spinning-shaft scene
+    data = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    data["Configuration"]["boundaryViscosity"] = 0.05
+    data["RigidBodies"][0].update({"angularVelocity": 12.0, "spinAxis": [0, 1, 0], "spinCenter": [0.5, 0.3, 0.5]})
+    scene = config_io.parse_scene(data)
+    assert scene.Configuration.boundaryViscosity == 0.05
+    assert scene.RigidBodies[0].angularVelocity == 12.0
+    assert scene.RigidBodies[0].spinCenter == [0.5, 0.3, 0.5]
+    dumped = config_io.scene_to_dict(scene)
+    assert dumped["Configuration"]["boundaryViscosity"] == 0.05
+    assert dumped["RigidBodies"][0]["angularVelocity"] == 12.0
+
+
 def test_scene_with_per_block_radius_round_trips():
     data = json.loads(SAMPLE.read_text(encoding="utf-8"))
     data.setdefault("FluidBlocks", [])

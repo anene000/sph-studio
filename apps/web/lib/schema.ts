@@ -17,6 +17,8 @@ export const ConfigurationSchema = z
     // Field physics (now solver-configurable).
     viscosity: z.number().default(0.01),
     surfaceTension: z.number().default(0.01),
+    // Wall viscosity: >0 lets a moving/rotating wall drive the fluid (no-slip).
+    boundaryViscosity: z.number().default(0),
     boundaryHandlingMethod: z.number().int().default(0),
     // Boundary opening / periodic flow (per-axis, length = dim).
     // periodicBoundary[d]=true opens axis d as a periodic boundary (no wall,
@@ -80,6 +82,11 @@ export const RigidBodySchema = z
     rotationAngle: z.number().default(0),
     // "z" converts a Blender Z-up mesh to the solver's Y-up on load.
     upAxis: z.enum(["y", "z"]).default("y"),
+    // Kinematic axis rotation (spinning shaft): rad/s about spinAxis through
+    // spinCenter (undefined -> object centroid).
+    angularVelocity: z.number().default(0),
+    spinAxis: Vec3.default([0, 1, 0]),
+    spinCenter: Vec3.optional(),
     velocity: Vec3.default([0, 0, 0]),
     density: z.number().default(1000),
     color: z.array(z.number().int()).default([255, 255, 255]),

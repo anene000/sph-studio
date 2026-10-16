@@ -240,6 +240,10 @@ export default function ParamsPage() {
         <Row label="surfaceTension 表面張力">
           <Num value={c.surfaceTension} step={0.001} onChange={(v) => mutate((s) => (s.Configuration.surfaceTension = v))} />
         </Row>
+        <Row label="boundaryViscosity 壁粘性">
+          <Num value={c.boundaryViscosity ?? 0} step={0.01} onChange={(v) => mutate((s) => (s.Configuration.boundaryViscosity = v))} />
+          <span style={{ fontSize: 11, opacity: 0.6 }}>&gt;0 で回転/移動する壁が流体を駆動（no-slip）。既定0=free-slip</span>
+        </Row>
 
         <h2 style={ui.h2}>WCSPH 係数</h2>
         <Row label="stiffness">

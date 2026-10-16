@@ -114,7 +114,7 @@ class WCSPHSolver(SPHBase):
                 r.norm()**2 + 0.01 * h**2) * self.cubic_kernel_derivative(r, h)
             ret += f_v
         elif self.ps.material[p_j] == self.ps.material_solid:
-            boundary_viscosity = 0.0
+            boundary_viscosity = self.boundary_viscosity
             # Boundary neighbors
             ## Akinci2012
             f_v = d * boundary_viscosity * (self.density_0 * self.ps.m_V[p_j] / (self.ps.density[p_i])) * v_xy / (

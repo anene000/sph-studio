@@ -41,6 +41,9 @@ class Configuration(BaseModel):
     # Field physics (previously hard-coded in the solver, now configurable).
     viscosity: float = 0.01
     surfaceTension: float = 0.01
+    # Wall (boundary) viscosity: momentum transfer from solid walls to the fluid.
+    # 0 = free-slip (historical). Set > 0 so a moving/rotating wall drives the fluid.
+    boundaryViscosity: float = 0.0
     boundaryHandlingMethod: int = 0
     # Boundary opening / periodic flow (per-axis, length = dim).
     #   periodicBoundary[d]=True  -> axis d is opened as a periodic boundary:
@@ -102,6 +105,13 @@ class RigidBody(BaseModel):
     # Source up-axis of the mesh. "z" converts a Blender Z-up export to the
     # solver's Y-up (rotate -90deg about X) on load; "y" (default) leaves it as-is.
     upAxis: Literal["y", "z"] = "y"
+    # Kinematic axis rotation (prescribed motion, e.g. a spinning shaft). When
+    # angularVelocity != 0 the body spins about spinAxis through spinCenter
+    # (default None -> object centroid) at this rate [rad/s]; position is otherwise
+    # fixed and the body is not affected by the fluid.
+    angularVelocity: float = 0.0
+    spinAxis: Vec3 = Field(default_factory=lambda: [0.0, 1.0, 0.0])
+    spinCenter: Optional[Vec3] = None
     velocity: Vec3 = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     density: float = 1000.0
     color: List[int] = Field(default_factory=lambda: [255, 255, 255])
